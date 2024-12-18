@@ -392,10 +392,6 @@ def createcell2d(P, grid, fault = False):
     
         return(cell2d, xcyc, vertices, gridobject, nodes)
 
-
-# In[ ]:
-
-
 #BUILDING TRI AND VORONOI MESH
 
 def tri_meshing(project, spatial, mesh):
@@ -451,26 +447,6 @@ def vor_meshing(project, spatial, mesh):
     
     return(cell2d, xcyc, vertices, vor)
 
-
-def plot_cell2d(mesh, spatial, xlim, ylim):
-    
-    fig = plt.figure(figsize=(7,7))
-    ax = plt.subplot(1, 1, 1, aspect='equal')
-    ax.set_xlim(xlim)
-    ax.set_ylim(ylim)
-    ax.set_title('Number cells in plan (ncpl): ' + str(len(mesh.cell2d)))
-
-    if mesh.plangrid == 'car': mesh.sg.plot(color = 'gray', lw = 0.4) 
-    if mesh.plangrid == 'tri': mesh.tri.plot(edgecolor='gray', lw = 0.4)
-    if mesh.plangrid == 'vor': mesh.vor.plot(edgecolor='black', lw = 0.4)
-        
-    for i in mesh.xcyc: 
-            ax.plot(i[0], i[1], 'o', color = 'green', ms = 0.5)    
-    for i in range(spatial.npump):
-            ax.plot(spatial.xypumpbores[i], ms = 2, color = 'black')    
-    for i in mesh.nodes: 
-        ax.plot(i[0], i[1], 'o', ms = 2, color = 'black')
-    return(fig, ax)
     
 def get_ls_from_gdf(gdf):
     points = []
