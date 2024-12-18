@@ -502,9 +502,3 @@ def extract_coord_from_shape(gdf):
                 coordinates.append([x,y])    
     return coordinates
 
-
-# In[ ]:
-
-
-print('Meshing routines loaded!')
-

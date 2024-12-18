@@ -3,7 +3,7 @@ import os
 
 class Project:
     def __init__(self, name, workspace, results, figures, triexe):
-        print('hello')
+        print('hello, hi')
         self.name = name
         self.workspace = '../modelfiles/'
         self.results = '../results/'
