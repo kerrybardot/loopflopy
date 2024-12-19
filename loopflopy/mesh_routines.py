@@ -77,6 +77,36 @@ def resample_linestring(linestring, distance):
     points = [linestring.interpolate(distance * i) for i in range(num_points + 1)]
     return points
 
+def get_ls_from_gdf(gdf):
+    points = []
+    for line in gdf['geometry']:
+        x, y = line.xy
+        points.extend(list(zip(x, y)))
+    ls = LineString(points)
+    return(ls)
+
+#def get_xy_from_gdf(gdf):
+#    points = []
+#    for line in gdf['geometry']:
+#        x, y = line.xy
+#        points.extend(list(zip(x, y)))
+#    x,y = zip(*points)
+#    return(x,y)
+
+#Define a function that returns a list of X,Y
+def extract_coord_from_shape(gdf):
+    coordinates = []
+    for geometry in gdf.geometry:
+        if geometry.geom_type == 'Polygon': # For polygons, extract X and Y coordinates
+            coords = geometry.exterior.coords
+            for x, y in coords:
+                coordinates.append([x,y])
+        elif geometry.geom_type == 'LineString': # For linestrings, extract X and Y coordinates
+            coords = geometry.coords
+            for x, y in coords:
+                coordinates.append([x,y])    
+    return coordinates
+
 def remove_close_points(coords, threshold): # Function to remove close points
     filtered_coords = [coords[0]]  # Start with the first coordinate
     
@@ -94,38 +124,6 @@ def remove_close_points(coords, threshold): # Function to remove close points
 
 
 # Preparing meshes for boundaries, bores and fault. 
-
-def prepboundarymesh(P, grid): # MODEL BOUNDARY
-    #from shapely.geometry import LineString,Point,Polygon,shape
-    x0, x1, y0, y1 = P.x0, P.x1, P.y0, P.y1 
-    w, r  = P.w, P.r
-    Lx, Ly = x1 - x0, y1 - y0
-    
-    if grid == 'tri':
-        model_vertices = []
-        for i in range(r): model_vertices.append(((i/r * Lx)+x0,y0))         # Bottom
-        for i in range(r): model_vertices.append((x1, (i/r * Ly) + y0))      # Right
-        for i in range(r): model_vertices.append(((Lx - i/r * Lx) + x0, y1)) # Top
-        for i in range(r): model_vertices.append((x0, (Ly - i/r * Ly) +y0))  # Left
-
-        # INTERIOR BOUNDARY
-        interior_vertices = [(x0+w,y0+w),(x1-w,y0+w),(x1-w, y1-w),(x0+w,y1-w)]
-        print(interior_vertices)
-        interior_poly = Polygon(interior_vertices)
-        
-    if grid == 'vor':
-        model_vertices = []
-        for i in range(r): model_vertices.append(((i/r * Lx)+x0,y0))         # Bottom
-        for i in range(r): model_vertices.append((x1, (i/r * Ly) + y0))      # Right
-        for i in range(r): model_vertices.append(((Lx - i/r * Lx) + x0, y1)) # Top
-        for i in range(r): model_vertices.append((x0, (Ly - i/r * Ly) +y0))  # Left
-
-        # INTERIOR BOUNDARY
-        interior_vertices = [(x0+w,y0+w),(x1-w,y0+w),(x1-w, y1-w),(x0+w,y1-w)]
-        interior_poly = Polygon(interior_vertices)
-    
-    return(model_vertices, interior_vertices)
-
 def prepboremesh(spatial, mesh):
     
     theta = np.linspace(0, 2 * np.pi, 11)
@@ -163,18 +161,7 @@ def prepboremesh(spatial, mesh):
             
             pump_bores_inner.append(vertices_inner)
             pump_bores_outer.append(vertices_outer)
-            
-        #for i in P.xyobsbores:   
-        #    X, Y = i[0], i[1] # coord of pumping bore
-        #                
-        #    x1, x2, x3, y1, y2, y3 = vertices_equtri1(X, Y, P.radius1) #/2
-        #    vertices_inner = ((x1, y1), (x2, y2), (x3, y3))
-        #    x1, x2, x3, y1, y2, y3 = vertices_equtri2(X, Y, P.radius1) #/2
-        #    vertices_outer = ((x1, y1), (x2, y2), (x3, y3))
-        #    
-        #    obs_bores_inner.append(vertices_inner)
-        #    obs_bores_outer.append(vertices_outer)
-        
+                    
         obs_tri_vertices = []
         for i in spatial.xyobsbores:   
             X, Y = i[0], i[1] # coord of pumping bore
@@ -243,47 +230,6 @@ def prepare_fault_nodes_voronoi(P, shpfilepath, model_boundary, inner_boundary):
     
     return(fault_refinement_nodes)
     
-def prepfaultmesh(P, grid): # This has been made for a pretend fault. Will look different for a real one!
-
-    L = P.fault_buffer
-    Lfault = np.sqrt((P.fx2-P.fx1)**2+(P.fy2 - P.fy1)**2)
-    # refining factor - adds points along fault for triangulation
-    fs = (P.fy2 - P.fy1)/(P.fx2 - P.fx1) # fault strike in xy
-    fp = -1/fs # direction perpendiculr to fault strike
-    theta = math.atan(fp)
-    phi = math.pi/2 - theta
-    
-    K = P.fault_buffer
-    fp1 = (P.fx1 + K * np.cos(phi), P.fy1 + K * np.sin(phi))
-    fp2 = (P.fx2 + K * np.cos(phi), P.fy2 + K * np.sin(phi))
-    fp3 = (P.fx2 - K * np.cos(phi), P.fy2 - K * np.sin(phi))
-    fp4 = (P.fx1 - K * np.cos(phi), P.fy1 - K * np.sin(phi))
-    P.fault_poly = Polygon((fp1, fp2, fp3, fp4))
-    
-    if grid == 'tri':
-        
-        # THESE WILL BE NODES
-        r = 25      # refining factor
-        fault_points = []
-        for i in range(r+1): 
-            fault_points.append((P.fx1 + i * (P.fx2-P.fx1)/r , P.fy1 + i * (P.fy2-P.fy1)/r)) 
-    
-    if grid == 'vor':
-
-        r = 2*L/3 # distance between points
-
-        x_array = np.arange(0, Lfault, r)  # Create a cloud of points to refine around fault
-        y_array = np.arange(-L, L + r, r)
-
-        fault_points = []
-        for i in range(len(x_array)):# vertical points 
-            for j in range(len(y_array)): # horizontal points
-                x = x_array[i] * np.cos(phi) + y_array[j] * np.sin(phi)
-                y = x_array[i] * -np.sin(phi) + y_array[j] * np.cos(phi)
-                fault_points.append((P.fx1 + x, P.fy1 + y))
-            
-    return(fault_points)
-
 # PREPARING NODES AND POLYGONS AND THEN CALLING MESHING FUNCTION
 
 def createcell2d(P, grid, fault = False):
@@ -392,89 +338,9 @@ def createcell2d(P, grid, fault = False):
     
         return(cell2d, xcyc, vertices, gridobject, nodes)
 
-#BUILDING TRI AND VORONOI MESH
-
-def tri_meshing(project, spatial, mesh):
-
-    from flopy.discretization import VertexGrid
-    from flopy.utils.triangle import Triangle as Triangle
-    
-    tri = Triangle(angle    = mesh.angle, 
-                   model_ws = project.workspace, 
-                   exe_name = project.triexe, 
-                   nodes    = mesh.nodes,
-                   additional_args = ['-j','-D'])
-
-    for poly in mesh.polygons:
-        tri.add_polygon(poly[0]) 
-        if poly[1] != 0: # Flag set to zero if region not required
-            tri.add_region(poly[1], 0, maximum_area = poly[2]) # Picks a point in main model
-
-    tri.build(verbose=False) # Builds triangular grid
-
-    cell2d = tri.get_cell2d()     # cell info: id,x,y,nc,c1,c2,c3 (list of lists)
-    vertices = tri.get_vertices()
-    xcyc = tri.get_xcyc()
-    
-    return(cell2d, xcyc, vertices, tri)
-
-def vor_meshing(project, spatial, mesh):
-
-    from flopy.discretization import VertexGrid
-    from flopy.utils.triangle import Triangle as Triangle
-    from flopy.utils.voronoi import VoronoiGrid
-    
-    tri = Triangle(angle = mesh.angle, 
-                   model_ws = project.workspace, 
-                   exe_name = project.triexe, 
-                   nodes = mesh.nodes,
-                   additional_args = ['-j','-D'])
-
-    for poly in mesh.polygons:
-        tri.add_polygon(poly[0]) 
-        if poly[1] != 0: # Flag set to zero if region not required
-            tri.add_region(poly[1], 0, maximum_area = poly[2]) # Picks a point in main model
-
-    tri.build(verbose=False) # Builds triangular grid
-
-    vor = VoronoiGrid(tri)
-    vertices = vor.get_disv_gridprops()['vertices']
-    cell2d = vor.get_disv_gridprops()['cell2d']
-
-    xcyc = []
-    for cell in cell2d:
-        xcyc.append((cell[1],cell[2]))
-    
-    return(cell2d, xcyc, vertices, vor)
 
     
-def get_ls_from_gdf(gdf):
-    points = []
-    for line in gdf['geometry']:
-        x, y = line.xy
-        points.extend(list(zip(x, y)))
-    ls = LineString(points)
-    return(ls)
 
-def get_xy_from_gdf(gdf):
-    points = []
-    for line in gdf['geometry']:
-        x, y = line.xy
-        points.extend(list(zip(x, y)))
-    x,y = zip(*points)
-    return(x,y)
 
-#Define a function that returns a list of X,Y
-def extract_coord_from_shape(gdf):
-    coordinates = []
-    for geometry in gdf.geometry:
-        if geometry.geom_type == 'Polygon': # For polygons, extract X and Y coordinates
-            coords = geometry.exterior.coords
-            for x, y in coords:
-                coordinates.append([x,y])
-        elif geometry.geom_type == 'LineString': # For linestrings, extract X and Y coordinates
-            coords = geometry.coords
-            for x, y in coords:
-                coordinates.append([x,y])    
-    return coordinates
+    
 

@@ -4,6 +4,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import flopy
 from shapely.geometry import LineString,Point,Polygon,MultiPolygon,MultiPoint,shape
+from flopy.discretization import VertexGrid
+from flopy.utils.triangle import Triangle as Triangle
+from flopy.utils.voronoi import VoronoiGrid
 
 class Mesh:    
     def __init__(self, plangrid, special_cells):       
@@ -12,12 +15,79 @@ class Mesh:
         self.obs_cells = [] # 1
         self.wel_cells = [] # 2
         self.chd_cells = [] # 3
-        self.nodes = []
-        self.polygons = [] # POLYGONS[(polygon, (x,y), maxtri)]
+        
+        
         #setattr(self, group, [])
 
-    def prepare_nodes_and_polygons(self, spatial, node_list, polygon_list):
+#### 
+    def create_bore_refinement(self, spatial):
+
+        self.welnodes = []
+        self.welnodes2 = []
+        
+        if self.plangrid == 'tri':
+            
+            def verts1(X, Y, l): # l is distance from centre of triangle to vertex
+                x1 = X - l*3**0.5/2 
+                x2 = X + l*3**0.5/2 
+                x3 = X
+                y1 = Y - l/2
+                y2 = Y - l/2
+                y3 = Y + l
+                return(x1, x2, x3, y1, y2, y3)
+            
+            def verts2(X, Y, l): # l is distance from centre of triangle to vertex
+                x1 = X 
+                x2 = X + l*3**0.5
+                x3 = X - l*3**0.5
+                y1 = Y - 2*l
+                y2 = Y + l
+                y3 = Y + l
+                return(x1, x2, x3, y1, y2, y3)
     
+            for i in spatial.xypumpbores:   
+                X, Y = i[0], i[1] # coord of pumping bore
+                            
+                x1, x2, x3, y1, y2, y3 = verts1(X, Y, self.radius1) #/2
+                vertices1 = ((x1, y1), (x2, y2), (x3, y3))
+                x1, x2, x3, y1, y2, y3 = verts2(X, Y, self.radius1) #/2
+                vertices2 = ((x1, y1), (x2, y2), (x3, y3))
+                
+                self.welnodes.append(vertices1)
+                self.welnodes.append(vertices2)
+                
+            spatial.bore_refinement_nodes = []
+            for bore in range(2*spatial.npump): # x 2 because inner and outer ring of vertices
+                for node in range(len(self.welnodes[bore])):
+                    spatial.bore_refinement_nodes.append(self.welnodes[bore][node])
+#
+#           theta = np.linspace(0, 2 * np.pi, 11)
+#           for i in spatial.xypumpbores:   
+#               X = i[0] + self.radius1 * np.cos(theta)
+#               Y = i[1] + self.radius1 * np.sin(theta)    
+#               vertices1 = [(x_val, y_val) for x_val, y_val in zip(X, Y)]
+#               X = i[0] + self.radius2 * np.cos(theta)
+#               Y = i[1] + self.radius2 * np.sin(theta)    
+#               vertices2 = [(x_val, y_val) for x_val, y_val in zip(X, Y)]
+#               self.welnodes.append(vertices1)
+#               self.welnodes.append(vertices2)
+#               #self.welnodes2.append(vertices2)
+                    
+        
+        if self.plangrid == 'vor':
+            theta = np.linspace(0, 2 * np.pi, 11)
+            for i in spatial.xypumpbores:   
+                X = i[0] + self.radius1 * np.cos(theta)
+                Y = i[1] + self.radius1 * np.sin(theta)    
+                vertices1 = [(x_val, y_val) for x_val, y_val in zip(X, Y)]
+                X = i[0] + self.radius2 * np.cos(theta)
+                Y = i[1] + self.radius2 * np.sin(theta)    
+                vertices2 = [(x_val, y_val) for x_val, y_val in zip(X, Y)]
+                self.welnodes.append(vertices1)
+                #self.welnodes2.append(vertices2)
+
+    def prepare_nodes_and_polygons(self, spatial, node_list, polygon_list):
+        self.nodes = []
         for n in node_list: # e.g. n could be "faults_nodes"
             points = getattr(spatial, n)
             if type(points) == list:            
@@ -26,7 +96,8 @@ class Mesh:
             else:
                 print("node_list ", n, " needs to be a list of tuples")
         self.nodes = np.array(self.nodes)
-        
+
+        self.polygons = [] # POLYGONS[(polygon, (x,y), maxtri)]
         for p in polygon_list: # e.g. p could be "model_boundary_poly"
             polygon = getattr(spatial, p)
             if type(polygon) == Polygon:            
@@ -36,8 +107,55 @@ class Mesh:
             else:
                 print("polygon ", n, " needs to be a Shapely Polygon")
             
-    def locate_special_cells(self, spatial):
+    
+    def create_mesh(self, project, spatial):
+        if self.plangrid == 'tri':
+        
+            tri = Triangle(angle    = self.angle, 
+                           model_ws = project.workspace, 
+                           exe_name = project.triexe, 
+                           nodes    = self.nodes,
+                           additional_args = ['-j','-D'])
+        
+            for poly in self.polygons:
+                tri.add_polygon(poly[0]) 
+                if poly[1] != 0: # Flag set to zero if region not required
+                    tri.add_region(poly[1], 0, maximum_area = poly[2]) # Picks a point in main model
+        
+            tri.build(verbose=False) # Builds triangular grid
+        
+            self.tri = tri
+            self.cell2d = tri.get_cell2d()     # cell info: id,x,y,nc,c1,c2,c3 (list of lists)
+            self.vertices = tri.get_vertices()
+            self.xcyc = tri.get_xcyc()
+            self.ncpl = len(self.cell2d)
+            self.vgrid = flopy.discretization.VertexGrid(vertices=self.vertices, cell2d=self.cell2d, ncpl = self.ncpl, nlay = 1)
+            
+        if self.plangrid == 'vor':
+            tri = Triangle(angle = self.angle, 
+               model_ws = project.workspace, 
+               exe_name = project.triexe, 
+               nodes = self.nodes,
+               additional_args = ['-j','-D'])
 
+            for poly in self.polygons:
+                tri.add_polygon(poly[0]) 
+                if poly[1] != 0: # Flag set to zero if region not required
+                    tri.add_region(poly[1], 0, maximum_area = poly[2]) # Picks a point in main model
+        
+            tri.build(verbose=False) # Builds triangular grid
+        
+            self.vor = VoronoiGrid(tri)
+            self.vertices = vor.get_disv_gridprops()['vertices']
+            self.cell2d = vor.get_disv_gridprops()['cell2d']
+        
+            self.xcyc = []
+            for cell in self.cell2d:
+                self.xcyc.append((cell[1],cell[2]))
+    
+    def locate_special_cells(self, spatial):
+        self.gi = flopy.utils.GridIntersect(self.vgrid)
+        self.ibd = np.zeros(self.ncpl, dtype=int) # empty array top shade important cells
         for group in self.special_cells:
             
             subgroups = self.special_cells[group]
