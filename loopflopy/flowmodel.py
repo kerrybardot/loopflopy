@@ -40,7 +40,7 @@ class Flowmodel:
         if not transient: 
             tdis = flopy.mf6.modflow.mftdis.ModflowTdis(sim)      
             
-        if transient:   
+        if transient:  
             tdis = flopy.mf6.modflow.mftdis.ModflowTdis(sim, nper=len(self.perioddata), perioddata=self.perioddata)
         
         # -------------- IMS -------------------------
@@ -106,7 +106,8 @@ class Flowmodel:
 
          # -------------- WEL / STO -------------------------
     
-        if self.wel:  
+        if transient and self.wel:  
+            print('coo coo')
             sto = flopy.mf6.modflow.mfgwfsto.ModflowGwfsto(gwf, 
                                                            storagecoefficient=None, 
                                                            iconvert=1, 

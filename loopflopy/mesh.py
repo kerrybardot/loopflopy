@@ -143,8 +143,15 @@ class Mesh:
             self.xcyc = xcyc
             self.vertices = vertices
             self.ncpl = len(self.cell2d)
+            
             self.vgrid = flopy.discretization.VertexGrid(vertices=self.vertices, cell2d=self.cell2d, ncpl = self.ncpl, nlay = 1)
-
+            self.gi = flopy.utils.GridIntersect(self.vgrid)
+            cells_within_bd = self.gi.intersect(spatial.model_boundary_poly)["cellids"]
+            self.idomain = np.zeros((self.ncpl))
+            for icpl in cells_within_bd:
+                self.idomain[icpl] = 1
+            #self.vgrid = flopy.discretization.VertexGrid(vertices=self.vertices, cell2d=self.cell2d, ncpl = self.ncpl, nlay = 1, idomain = self.idomain)
+            
         if self.plangrid == 'tri':
         
             tri = Triangle(angle    = self.angle, 
@@ -165,6 +172,7 @@ class Mesh:
             self.vertices = tri.get_vertices()
             self.xcyc = tri.get_xcyc()
             self.ncpl = len(self.cell2d)
+            self.idomain = np.ones((self.ncpl))            
             self.vgrid = flopy.discretization.VertexGrid(vertices=self.vertices, cell2d=self.cell2d, ncpl = self.ncpl, nlay = 1)
             
         if self.plangrid == 'vor':
@@ -185,6 +193,7 @@ class Mesh:
             self.vertices = self.vor.get_disv_gridprops()['vertices']
             self.cell2d = self.vor.get_disv_gridprops()['cell2d']
             self.ncpl = len(self.cell2d)
+            self.idomain = np.ones((self.ncpl))            
             self.vgrid = flopy.discretization.VertexGrid(vertices=self.vertices, cell2d=self.cell2d, ncpl = self.ncpl, nlay = 1)
             self.xcyc = []
             for cell in self.cell2d:
@@ -290,31 +299,32 @@ class Mesh:
         ax.set_xlim(xlim) 
         ax.set_ylim(ylim) 
         ax.set_title('Special cells')
-
-  
             
         pmv = flopy.plot.PlotMapView(ax = ax, modelgrid=self.vgrid)
-        p = pmv.plot_array(self.ibd, alpha = 0.6)
-        #self.tri.plot(ax=ax, edgecolor='black', lw = 0.1)
+        
+        mask = self.idomain == 0
+        ma = np.ma.masked_where(mask, self.ibd)
+        p = pmv.plot_array(ma, alpha = 0.6)
+        
         if self.plangrid == 'car': self.sg.plot(ax=ax, color = 'gray', lw = 0.4) 
         if self.plangrid == 'tri': self.tri.plot(ax=ax, edgecolor='gray', lw = 0.4)
-        if self.plangrid == 'vor': self.vor.plot(ax=ax, edgecolor='black', lw = 0.4)
-             
+        if self.plangrid == 'vor': self.vor.plot(ax=ax, edgecolor='black', lw = 0.4)  
+        
         for group in self.special_cells:
             
             if group == 'obs':
                 for i in range(len(spatial.obsbore_gdf)):
                     x,y = spatial.obsbore_gdf.geometry.iloc[i].xy
-                    ax.plot(x, y, '-o', ms = 5, lw = 1, color='blue')
-                for cell in self.obs_cells:
-                    ax.plot(self.cell2d[cell][1], self.cell2d[cell][2], "o", color = 'black', ms = 1)
+                    ax.plot(x, y, '-o', ms = 5, lw = 1, color='blue') ###########
+                #for cell in self.obs_cells:  
+                #    ax.plot(self.cell2d[cell][1], self.cell2d[cell][2], "o", color = 'black', ms = 1)############
             
             if group == 'wel':
                 for i in range(len(spatial.pumpbore_gdf)):
                     x,y = spatial.pumpbore_gdf.geometry.iloc[i].xy
                     ax.plot(x, y, '-o', ms = 5, lw = 1, color='red')
-                for cell in self.wel_cells:
-                    ax.plot(self.cell2d[cell][1], self.cell2d[cell][2], "o", color = 'blue', ms = 2)
+                #for cell in self.wel_cells:
+                #    ax.plot(self.cell2d[cell][1], self.cell2d[cell][2], "o", color = 'blue', ms = 2)
 
             if group == 'chd':
                 for cell in self.chd_cells:
@@ -323,7 +333,26 @@ class Mesh:
             if group == 'zone':
                 for subgroup in self.special_cells['zone']: # subgroup must be a poly
                     x, y = spatial.subgroup.exterior.xy
-                    ax.plot(x, y, '-o', ms = 2, lw = 0.5, color='blue') 
+                    ax.plot(x, y, '-o', ms = 2, lw = 0.5, color='green') 
+
+    def plot_problem_cell(self, spatial, x, y, xlim = None, ylim = None):
+    
+        fig = plt.figure(figsize=(7,7))
+        ax = plt.subplot(1, 1, 1, aspect="auto")
+        ax.set_xlim(xlim) 
+        ax.set_ylim(ylim) 
+
+        if self.plangrid == 'car': self.sg.plot(ax=ax, color = 'gray', lw = 0.4) 
+        if self.plangrid == 'tri': self.tri.plot(ax=ax, edgecolor='gray', lw = 0.4)
+        if self.plangrid == 'vor': self.vor.plot(ax=ax, edgecolor='black', lw = 0.4)  
+            
+        pmv = flopy.plot.PlotMapView(ax = ax, modelgrid=self.vgrid)
+        
+        mask = self.idomain == 0
+        ma = np.ma.masked_where(mask, self.ibd)
+        p = pmv.plot_array(ma, alpha = 0.6)
+        ax.plot(x, y, '-o', ms = 10, lw = 1, color='red') ###########
+        
 
 
 
