@@ -12,10 +12,6 @@ class Mesh:
     def __init__(self, plangrid, special_cells):       
         self.plangrid = plangrid
         self.special_cells = special_cells
-        self.obs_cells = [] # 1
-        self.wel_cells = [] # 2
-        self.chd_cells = [] # 3
-        
         
         #setattr(self, group, [])
 
@@ -109,6 +105,46 @@ class Mesh:
             
     
     def create_mesh(self, project, spatial):
+
+        if self.plangrid == 'car':
+            self.delx = (spatial.x1 - spatial.x0)/self.ncol
+            self.dely = (spatial.y1 - spatial.y0)/self.nrow
+            delr = self.delx * np.ones(self.ncol, dtype=float)
+            delc = self.dely * np.ones(self.nrow, dtype=float)
+            top  = np.ones((self.nrow, self.ncol), dtype=float)
+            botm = np.zeros((1, self.nrow, self.ncol), dtype=float)
+            sg = flopy.discretization.StructuredGrid(delr=delr, delc=delc, top=top, botm=botm, xoff = spatial.x0, yoff = spatial.y0)
+            xyzcenters = sg.xyzcellcenters
+            
+            cell2d = []
+            xcyc = [] # added 
+            for n in range(self.nrow*self.ncol):
+                l,r,c = sg.get_lrc(n)[0]
+                xc = xyzcenters[0][0][c]
+                yc = xyzcenters[0][1][r]
+                iv1 = c + r * (self.ncol + 1)  # upper left
+                iv2 = iv1 + 1
+                iv3 = iv2 + self.ncol + 1
+                iv4 = iv3 - 1
+                cell2d.append([n, xc, yc, 5, iv1, iv2, iv3, iv4, iv1])
+                xcyc.append((xc, yc))
+            
+            vertices = []
+            xa = np.arange(spatial.x0, spatial.x1 + self.delx, self.delx)      
+            ya = np.arange(spatial.y1, spatial.y0 - self.dely/2, -self.dely)
+    
+            n = 0
+            for j in ya:
+                for i in xa:
+                    vertices.append([n, i, j])
+                    n+=1
+            self.sg = sg    
+            self.cell2d = cell2d
+            self.xcyc = xcyc
+            self.vertices = vertices
+            self.ncpl = len(self.cell2d)
+            self.vgrid = flopy.discretization.VertexGrid(vertices=self.vertices, cell2d=self.cell2d, ncpl = self.ncpl, nlay = 1)
+
         if self.plangrid == 'tri':
         
             tri = Triangle(angle    = self.angle, 
@@ -146,16 +182,24 @@ class Mesh:
             tri.build(verbose=False) # Builds triangular grid
         
             self.vor = VoronoiGrid(tri)
-            self.vertices = vor.get_disv_gridprops()['vertices']
-            self.cell2d = vor.get_disv_gridprops()['cell2d']
-        
+            self.vertices = self.vor.get_disv_gridprops()['vertices']
+            self.cell2d = self.vor.get_disv_gridprops()['cell2d']
+            self.ncpl = len(self.cell2d)
+            self.vgrid = flopy.discretization.VertexGrid(vertices=self.vertices, cell2d=self.cell2d, ncpl = self.ncpl, nlay = 1)
             self.xcyc = []
             for cell in self.cell2d:
                 self.xcyc.append((cell[1],cell[2]))
     
     def locate_special_cells(self, spatial):
+        
+        self.obs_cells = [] 
+        self.wel_cells = [] 
+        self.chd_cells = [] 
+
         self.gi = flopy.utils.GridIntersect(self.vgrid)
         self.ibd = np.zeros(self.ncpl, dtype=int) # empty array top shade important cells
+        flag = 1 # id of special cell
+        
         for group in self.special_cells:
             
             subgroups = self.special_cells[group]
@@ -164,25 +208,37 @@ class Mesh:
             #for attribute, value in flowmodel.data.__dict__.items(): print(attribute)
             #for key, value in d.items():
             #print(f"{key}: {value}")
-
+            
             for i, subgroup in enumerate(subgroups): # e.g. for 'west' in chd
                 if group == 'obs':
                     points = [Point(xy) for xy in spatial.xyobsbores]
                     for point in points:
                         cell = self.gi.intersect(point)["cellids"][0]
-                        self.ibd[cell] = 1
+                        self.ibd[cell] = flag
                         self.obs_cells.append(cell)
+                
                 if group == 'wel':
                     points = [Point(xy) for xy in spatial.xypumpbores]
                     for point in points:
                         cell = self.gi.intersect(point)["cellids"][0]
-                        self.ibd[cell] = 2
+                        self.ibd[cell] = flag
                         self.wel_cells.append(cell)
-                        chd_west_cells = []
-                if group == 'chd':         
-                    self.chd_cells = self.gi.intersects(spatial.chd_west_ls)["cellids"]
-                    for cell in self.chd_cells:
-                        self.ibd[cell] = 3
+               
+                if group == 'chd':    
+                    
+                    att_name = f"chd_{subgroup}_ls"
+                    ls = getattr(spatial, att_name)
+                    
+                    cells = self.gi.intersects(ls)["cellids"]
+
+                    att_name = f"chd_{subgroup}_cells"
+                    setattr(self, att_name, cells)
+                    
+                    for cell in cells:
+                        self.chd_cells.append(cell)
+                        self.ibd[cell] = flag
+
+            flag += 1
             
             #stream_cells = []
             #for i in mesh.xcyc:
@@ -191,50 +247,17 @@ class Mesh:
             #    if spatial.streams_poly.contains(point):
             #        mesh.ibd[cell[0]] = 3
             #        stream_cells.append(cell[0])
-            
-    def plot_feature_cells(self, spatial, xlim = None, ylim = None): # e.g xlim = [700000, 707500]
-    
-        fig = plt.figure(figsize=(6,6))
-        ax = plt.subplot(1, 1, 1, aspect="equal")
-        pmv = flopy.plot.PlotMapView(modelgrid=self.vgrid)
-        p = pmv.plot_array(self.ibd, alpha = 0.6)
-        self.tri.plot(ax=ax, edgecolor='black', lw = 0.1)
-             
-        ax.set_xlim(xlim) 
-        ax.set_ylim(ylim) 
-           
-        for group in self.special_cells:
-            
-            if group == 'obs':
-                spatial.obsbore_gdf.plot(ax=ax, markersize = 7, color = 'darkblue', zorder=2)
-                for cell in self.obs_cells:
-                    ax.plot(self.cell2d[cell][1], self.cell2d[cell][2], "o", color = 'black', ms = 1)
-            
-            if group == 'wel':
-                spatial.pumpbore_gdf.plot(ax=ax, markersize = 12, color = 'red', zorder=2)
-                for cell in self.wel_cells:
-                    ax.plot(self.cell2d[cell][1], self.cell2d[cell][2], "o", color = 'blue', ms = 2)
-
-            if group == 'chd':
-                for cell in self.chd_cells:
-                    ax.plot(self.cell2d[cell][1], self.cell2d[cell][2], "o", color = 'red', ms = 1)
-
-            if group == 'zone':
-                for subgroup in self.special_cells['zone']: # subgroup must be a poly
-                    x, y = spatial.subgroup.exterior.xy
-                    ax.plot(x, y, '-o', ms = 2, lw = 0.5, color='blue') 
-
     def plot_cell2d(self, spatial, features = None, xlim = None, ylim = None):
         
         fig = plt.figure(figsize=(7,7))
-        ax = plt.subplot(1, 1, 1, aspect='equal')
+        ax = plt.subplot(1, 1, 1, aspect='auto')
         ax.set_xlim(xlim)
         ax.set_ylim(ylim)
         ax.set_title('Number cells in plan (ncpl): ' + str(len(self.cell2d)))
     
-        if self.plangrid == 'car': self.sg.plot(color = 'gray', lw = 0.4) 
-        if self.plangrid == 'tri': self.tri.plot(edgecolor='gray', lw = 0.4)
-        if self.plangrid == 'vor': self.vor.plot(edgecolor='black', lw = 0.4)
+        if self.plangrid == 'car': self.sg.plot(ax = ax, color = 'gray', lw = 0.4) 
+        if self.plangrid == 'tri': self.tri.plot(ax = ax, edgecolor='gray', lw = 0.4)
+        if self.plangrid == 'vor': self.vor.plot(ax = ax, edgecolor='black', lw = 0.4)
             
         for i in self.xcyc: 
                 ax.plot(i[0], i[1], 'o', color = 'green', ms = 0.5)    
@@ -259,6 +282,50 @@ class Mesh:
         
         if 'fault' in features:
             spatial.faults_gdf.plot(ax=ax, color = 'red', zorder=2)
+            
+    def plot_feature_cells(self, spatial, xlim = None, ylim = None): # e.g xlim = [700000, 707500]
+    
+        fig = plt.figure(figsize=(7,7))
+        ax = plt.subplot(1, 1, 1, aspect="auto")
+        ax.set_xlim(xlim) 
+        ax.set_ylim(ylim) 
+        ax.set_title('Special cells')
+
+  
+            
+        pmv = flopy.plot.PlotMapView(ax = ax, modelgrid=self.vgrid)
+        p = pmv.plot_array(self.ibd, alpha = 0.6)
+        #self.tri.plot(ax=ax, edgecolor='black', lw = 0.1)
+        if self.plangrid == 'car': self.sg.plot(ax=ax, color = 'gray', lw = 0.4) 
+        if self.plangrid == 'tri': self.tri.plot(ax=ax, edgecolor='gray', lw = 0.4)
+        if self.plangrid == 'vor': self.vor.plot(ax=ax, edgecolor='black', lw = 0.4)
+             
+        for group in self.special_cells:
+            
+            if group == 'obs':
+                for i in range(len(spatial.obsbore_gdf)):
+                    x,y = spatial.obsbore_gdf.geometry.iloc[i].xy
+                    ax.plot(x, y, '-o', ms = 5, lw = 1, color='blue')
+                for cell in self.obs_cells:
+                    ax.plot(self.cell2d[cell][1], self.cell2d[cell][2], "o", color = 'black', ms = 1)
+            
+            if group == 'wel':
+                for i in range(len(spatial.pumpbore_gdf)):
+                    x,y = spatial.pumpbore_gdf.geometry.iloc[i].xy
+                    ax.plot(x, y, '-o', ms = 5, lw = 1, color='red')
+                for cell in self.wel_cells:
+                    ax.plot(self.cell2d[cell][1], self.cell2d[cell][2], "o", color = 'blue', ms = 2)
+
+            if group == 'chd':
+                for cell in self.chd_cells:
+                    ax.plot(self.cell2d[cell][1], self.cell2d[cell][2], "o", color = 'red', ms = 1)
+
+            if group == 'zone':
+                for subgroup in self.special_cells['zone']: # subgroup must be a poly
+                    x, y = spatial.subgroup.exterior.xy
+                    ax.plot(x, y, '-o', ms = 2, lw = 0.5, color='blue') 
+
+
 
 
 

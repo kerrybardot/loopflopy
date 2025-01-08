@@ -4,6 +4,7 @@ import flopy
 import math
 import sys
 import os
+import matplotlib.pyplot as plt
 
 class Flowmodel:
     
@@ -271,4 +272,56 @@ class Flowmodel:
     
         return watertable
 
+    def plot_watertable(self, spatial, mesh, geomodel, flowmodel, watertable, extent = None, vmin = None, vmax = None):
+        fig = plt.figure(figsize = (8,6))
+        ax = plt.subplot(111)
+        ax.set_title(flowmodel.scenario, size = 10)
+        mapview = flopy.plot.PlotMapView(modelgrid=geomodel.vgrid)#, layer = layer)
+        plan = mapview.plot_array(watertable, cmap='Spectral', alpha=0.8, vmin = vmin, vmax = vmax)
+        #if vectors:
+        #    mapview.plot_vector(flowmodel.spd["qx"], flowmodel.spd["qy"], alpha=0.5)
+        ax.set_xlabel('x (m)', size = 10)
+        ax.set_ylabel('y (m)', size = 10)
+        plt.colorbar(plan, shrink = 0.4)
+           
+        for j in range(spatial.nobs):
+            ax.plot(spatial.xyobsbores[j][0], spatial.xyobsbores[j][1],'o', ms = '4', c = 'black')
+            #ax.annotate(spatial.idobsbores[j], (spatial.xyobsbores[j][0], spatial.xyobsbores[j][1]+100), c='black', size = 10) #, weight = 'bold')
+        
+        for j in range(spatial.npump):
+            ax.plot(spatial.xypumpbores[j][0], spatial.xypumpbores[j][1],'o', ms = '4', c = 'red')
+            #ax.annotate(spatial.idpumpbores[j], (spatial.xypumpbores[j][0], spatial.xypumpbores[j][1]+100), c='red', size = 10) #, weight = 'bold')
+            
+        if mesh.plangrid == 'car': mesh.sg.plot(color = 'black', lw = 0.2) 
+        if mesh.plangrid == 'tri': mesh.tri.plot(edgecolor='black', lw = 0.2)
+        if mesh.plangrid == 'vor': mesh.vor.plot(edgecolor='black', lw = 0.2)
+        ax.plot([extent[0], extent[1]], [extent[2], extent[3]], color = 'black', lw = 1)
+        plt.tight_layout() 
+
+    def plot_plan(self, spatial, mesh, array, layer, extent = None, vmin = None, vmax = None, vectors = None):
+        
+        fig = plt.figure(figsize = (8,6))
+        ax = plt.subplot(111)
+        ax.set_title(self.scenario, size = 10)
+        mapview = flopy.plot.PlotMapView(model=self.gwf)#, layer = layer)
+        plan = mapview.plot_array(getattr(self, array), cmap='Spectral', alpha=0.8, vmin = vmin, vmax = vmax)
+        if vectors:
+            mapview.plot_vector(self.spd["qx"], self.spd["qy"], alpha=0.5)
+        ax.set_xlabel('x (m)', size = 10)
+        ax.set_ylabel('y (m)', size = 10)
+        plt.colorbar(plan, shrink = 0.4)
+           
+        for j in range(spatial.nobs):
+            ax.plot(spatial.xyobsbores[j][0], spatial.xyobsbores[j][1],'o', ms = '4', c = 'black')
+            #ax.annotate(spatial.idobsbores[j], (spatial.xyobsbores[j][0], spatial.xyobsbores[j][1]+100), c='black', size = 10) #, weight = 'bold')
+        
+        for j in range(spatial.npump):
+            ax.plot(spatial.xypumpbores[j][0], spatial.xypumpbores[j][1],'o', ms = '4', c = 'red')
+            #ax.annotate(spatial.idpumpbores[j], (spatial.xypumpbores[j][0], spatial.xypumpbores[j][1]+100), c='red', size = 10) #, weight = 'bold')
+            
+        if mesh.plangrid == 'car': mesh.sg.plot(ax = ax, color = 'black', lw = 0.2) 
+        if mesh.plangrid == 'tri': mesh.tri.plot(ax = ax, edgecolor='black', lw = 0.2)
+        if mesh.plangrid == 'vor': mesh.vor.plot(ax = ax, edgecolor='black', lw = 0.2)
+        ax.plot([extent[0], extent[1]], [extent[2], extent[3]], color = 'black', lw = 1)
+        plt.tight_layout() 
 

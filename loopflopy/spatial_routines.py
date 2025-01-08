@@ -1,4 +1,4 @@
-
+import os
 from shapely.geometry import LineString,Point,Polygon,MultiPolygon,MultiPoint,shape
 import geopandas as gpd
 import pandas as pd
@@ -23,11 +23,13 @@ def create_bbox(spatial, x0, x1, y0, y1): # Create a bounding box shape file
     ycoords = [y0, y0, y1, y1, y0]
     bbox = Polygon(list(zip(xcoords, ycoords)))
     bbox_gdf = gpd.GeoDataFrame(geometry=[bbox], crs = spatial.epsg)
+    
+    if not os.path.isdir('../data/'): os.makedirs('../data/', exist_ok=True)
+    if not os.path.isdir('../data/data_shp/'): os.makedirs('../data/data_shp/', exist_ok=True)
+    if not os.path.isdir('../data/data_shp/bbox/'): os.makedirs('../data/data_shp/bbox/', exist_ok=True)
     bbox_gdf.to_file('../data/data_shp/bbox/bbox.shp')
 
 def model_boundary(spatial):
-
-
 
     model_boundary_shp_fname = '../data/data_shp/coast/Coastline_LGATE_070.shp'
     model_boundary_gdf = gpd.read_file(model_boundary_shp_fname)
