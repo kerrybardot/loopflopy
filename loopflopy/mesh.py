@@ -335,7 +335,7 @@ class Mesh:
                     x, y = spatial.subgroup.exterior.xy
                     ax.plot(x, y, '-o', ms = 2, lw = 0.5, color='green') 
 
-    def plot_problem_cell(self, spatial, x, y, xlim = None, ylim = None):
+    def plot_problem_cell(self, geomodel, spatial, x, y, xlim = None, ylim = None):
     
         fig = plt.figure(figsize=(7,7))
         ax = plt.subplot(1, 1, 1, aspect="auto")
@@ -348,10 +348,11 @@ class Mesh:
             
         pmv = flopy.plot.PlotMapView(ax = ax, modelgrid=self.vgrid)
         
-        mask = self.idomain == 0
+        mask = self.idomain[0] == -1
         ma = np.ma.masked_where(mask, self.ibd)
-        p = pmv.plot_array(ma, alpha = 0.6)
+        p = pmv.plot_array(geomodel.idomain, alpha = 0.6)
         ax.plot(x, y, '-o', ms = 10, lw = 1, color='red') ###########
+        plt.colorbar(p, shrink = 0.5)
         
 
 

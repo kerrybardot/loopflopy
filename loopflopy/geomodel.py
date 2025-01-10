@@ -303,6 +303,7 @@ class Geomodel:
                 for lay in range(1,nlay):
                     if botm[lay, icpl] == botm[lay-1, icpl]:
                         idomain[lay, icpl] = -1
+    
             self.botm_geo = botm_geo      
             self.botm = botm
             self.idomain = idomain

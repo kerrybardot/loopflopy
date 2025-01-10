@@ -30,14 +30,14 @@ class StructuralModel:
         self.norm = norm
         self.cmap = matplotlib.colors.LinearSegmentedColormap.from_list("", tuples)
 
-    def plot_transects(self, transect_x, transect_y):
+    def plot_transects(self, transect_x, transect_y, nx, ny, nz):
         
         # N-S TRANSECTS
         x0, y0, z0 = self.x0, self.y0, self.z0
         x1, y1, z1 = self.x1, self.y1, self.z1
 
-        z = np.arange(z0, 1000, 2.)
-        y = np.arange(y0,y1, 500.)
+        z = np.linspace(z0, z1, nz)
+        y = np.linspace(y0, y1, ny)
         Y,Z = np.meshgrid(y,z)
 
         labels = self.strat_names[1:]
@@ -49,6 +49,7 @@ class StructuralModel:
             X = np.zeros_like(Y)
             X[:,:] = n
             plt.subplot(len(transect_x), 1, i+1)
+            print(X.flatten().shape,Y.flatten().shape,Z.flatten().shape)
             V = self.model.evaluate_model(np.array([X.flatten(),Y.flatten(),Z.flatten()]).T).reshape(np.shape(X))
             csa = plt.imshow(np.ma.masked_where(V<0,V), origin = "lower", extent = [y0,y1,z0,z1], aspect = 'auto', cmap = self.cmap, norm = self.norm)
             if i < (len(transect_x)-1):
@@ -69,8 +70,8 @@ class StructuralModel:
         
         # W-E TRANSECTS
         
-        z = np.arange(z0, 1000, 2.)
-        x = np.arange(x0,x1, 500.)
+        z = np.linspace(z0, z1, nz)
+        x = np.linspace(x0, x1, nx)
         X,Z = np.meshgrid(x,z)
         
         plt.figure(figsize=(10, 8))

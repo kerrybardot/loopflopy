@@ -5,6 +5,7 @@ import math
 import sys
 import os
 import matplotlib.pyplot as plt
+#import disv2disu
 
 class Flowmodel:
     
@@ -76,17 +77,16 @@ class Flowmodel:
 
         # -------------- DIS -------------------------       
 
-        import disv2disu
+        from loopflopy import disv2disu
         #from importlib import reload
         #reload(disv2disu)
         Disv2Disu = disv2disu.Disv2Disu           
          
-        dv2d = Disv2Disu(self.mesh.vertices, self.mesh.cell2d, self.geomodel.top_geo, self.geomodel.botm, staggered=self.staggered, disv_idomain = self.geomodel.idomain)
+        dv2d = Disv2Disu(self.mesh.vertices, self.mesh.cell2d, self.geomodel.top_geo, self.geomodel.botm, staggered=self.staggered, disv_idomain = self.geomodel.idomain,)
         disu_gridprops = dv2d.get_gridprops_disu6()
         disu = flopy.mf6.ModflowGwfdisu(gwf, **disu_gridprops) # This is the flow package
-        
         # -------------- NPF -------------------------
-               
+
         npf = flopy.mf6.modflow.mfgwfnpf.ModflowGwfnpf(gwf, 
                                                        xt3doptions = self.xt3d, 
                                                        k = self.geomodel.k11, 
