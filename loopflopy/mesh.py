@@ -208,6 +208,7 @@ class Mesh:
         self.gi = flopy.utils.GridIntersect(self.vgrid)
         self.ibd = np.zeros(self.ncpl, dtype=int) # empty array top shade important cells
         flag = 1 # id of special cell
+        self.cell_type = ['regular cell']
         
         for group in self.special_cells:
             
@@ -217,24 +218,31 @@ class Mesh:
             #for attribute, value in flowmodel.data.__dict__.items(): print(attribute)
             #for key, value in d.items():
             #print(f"{key}: {value}")
-            
-            for i, subgroup in enumerate(subgroups): # e.g. for 'west' in chd
-                if group == 'obs':
+            if group == 'obs':
+                for i, subgroup in enumerate(subgroups): # e.g. for 'west' in chd
+                    self.cell_type.append(f'{group} - {subgroup}')
                     points = [Point(xy) for xy in spatial.xyobsbores]
                     for point in points:
                         cell = self.gi.intersect(point)["cellids"][0]
                         self.ibd[cell] = flag
                         self.obs_cells.append(cell)
+                    flag += 1
+                    
                 
-                if group == 'wel':
+            if group == 'wel':
+                for i, subgroup in enumerate(subgroups): # e.g. for 'west' in chd
+                    self.cell_type.append(f'{group} - {subgroup}')
                     points = [Point(xy) for xy in spatial.xypumpbores]
                     for point in points:
                         cell = self.gi.intersect(point)["cellids"][0]
                         self.ibd[cell] = flag
                         self.wel_cells.append(cell)
-               
-                if group == 'chd':    
+                    flag += 1
                     
+               
+            if group == 'chd':    
+                for i, subgroup in enumerate(subgroups): # e.g. for 'west' in chd    
+                    self.cell_type.append(f'{group} - {subgroup}')
                     att_name = f"chd_{subgroup}_ls"
                     ls = getattr(spatial, att_name)
                     
@@ -246,8 +254,10 @@ class Mesh:
                     for cell in cells:
                         self.chd_cells.append(cell)
                         self.ibd[cell] = flag
-
-            flag += 1
+                    flag += 1
+                    
+            
+            #flag += 1
             
             #stream_cells = []
             #for i in mesh.xcyc:
@@ -283,9 +293,7 @@ class Mesh:
                 ax.annotate(label, xy=(x, y), xytext=(2, 2), size = 8, textcoords="offset points")
 
         if 'wel' in features:
-            spatial.pumpbore_gdf.plot(ax=ax, markersize = 12, color = 'red', zorder=2)
-            for i in range(spatial.npump):
-                ax.plot(spatial.xypumpbores[i], ms = 2, color = 'black')   
+            spatial.pumpbore_gdf.plot(ax=ax, markersize = 12, color = 'red', zorder=2) 
             for x, y, label in zip(spatial.pumpbore_gdf.geometry.x, spatial.pumpbore_gdf.geometry.y, spatial.pumpbore_gdf.id):
                 ax.annotate(label, xy=(x, y), xytext=(2, 2), size = 8, textcoords="offset points")
         
@@ -293,18 +301,30 @@ class Mesh:
             spatial.faults_gdf.plot(ax=ax, color = 'red', zorder=2)
             
     def plot_feature_cells(self, spatial, xlim = None, ylim = None): # e.g xlim = [700000, 707500]
-    
-        fig = plt.figure(figsize=(7,7))
-        ax = plt.subplot(1, 1, 1, aspect="auto")
+        
+        from matplotlib import gridspec
+        from matplotlib.colors import BoundaryNorm, ListedColormap
+
+        fig = plt.figure(figsize=(7,5))
+        spec = gridspec.GridSpec(nrows=1, ncols=2, width_ratios=[1, 0.05], wspace=0.2)
+
+        ax = fig.add_subplot(spec[0], aspect="equal") #plt.subplot(1, 1, 1, aspect="auto")
         ax.set_xlim(xlim) 
         ax.set_ylim(ylim) 
         ax.set_title('Special cells')
             
         pmv = flopy.plot.PlotMapView(ax = ax, modelgrid=self.vgrid)
         
+        unique_ibd = np.unique(self.ibd)
+        bounds = np.append(unique_ibd, unique_ibd[-1]+1)
+        cmap = plt.cm.tab20
+        #cmap = plt.cm.get_cmap('tab20', len(unique_ibd))  # 'tab20' provides 20 distinct colors
+        #colors = [cmap(i) for i in range(cmap.N)]
+        norm = BoundaryNorm(bounds, cmap.N, extend='neither')
+        
         mask = self.idomain == 0
         ma = np.ma.masked_where(mask, self.ibd)
-        p = pmv.plot_array(ma, alpha = 0.6)
+        p = pmv.plot_array(ma, alpha = 0.6, cmap = cmap, norm = norm)
         
         if self.plangrid == 'car': self.sg.plot(ax=ax, color = 'gray', lw = 0.4) 
         if self.plangrid == 'tri': self.tri.plot(ax=ax, edgecolor='gray', lw = 0.4)
@@ -334,6 +354,10 @@ class Mesh:
                 for subgroup in self.special_cells['zone']: # subgroup must be a poly
                     x, y = spatial.subgroup.exterior.xy
                     ax.plot(x, y, '-o', ms = 2, lw = 0.5, color='green') 
+        # Colorbar
+        cbar_ax = fig.add_subplot(spec[1])
+        cbar = fig.colorbar(p, cax=cbar_ax, ticks=np.unique(self.ibd)+0.5, shrink = 0.4)  # Center tick labels
+        cbar.ax.set_yticklabels(self.cell_type) # Custom tick labels
 
     def plot_problem_cell(self, geomodel, spatial, x, y, xlim = None, ylim = None):
     
