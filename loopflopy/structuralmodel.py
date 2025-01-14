@@ -9,7 +9,7 @@ class StructuralModel:
     def __init__(self, spatial, bbox, geodata_fname, data_sheetname, strat_sheetname):
         self.geodata_fname = geodata_fname
         self.data_sheetname = data_sheetname
-        self.strat_sheetname = strat_sheetnamebbox
+        self.strat_sheetname = strat_sheetname
         self.origin = bbox[0] #np.array([spatial.x0, spatial.y0, spatial.z0]).astype(float)
         self.maximum = bbox[1] #np.array([spatial.x1, spatial.y1, spatial.z1]).astype(float)
 

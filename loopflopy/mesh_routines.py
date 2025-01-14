@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# coding: utf-8
-print("bonjour")
 import matplotlib.pyplot as plt
 from shapely.geometry import LineString,Point,Polygon,MultiPolygon,shape
 import numpy as np
