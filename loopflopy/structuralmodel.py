@@ -5,15 +5,16 @@ import matplotlib.pyplot as plt
 import matplotlib.colors
 
 class StructuralModel:
-    def __init__(self, spatial, geodata_fname, data_sheetname, strat_sheetname):
+    print("hello") 
+    def __init__(self, spatial, bbox, geodata_fname, data_sheetname, strat_sheetname):
         self.geodata_fname = geodata_fname
         self.data_sheetname = data_sheetname
-        self.strat_sheetname = strat_sheetname
-        self.origin = np.array([spatial.x0, spatial.y0, spatial.z0]).astype(float)
-        self.maximum = np.array([spatial.x1, spatial.y1, spatial.z1]).astype(float)
+        self.strat_sheetname = strat_sheetnamebbox
+        self.origin = bbox[0] #np.array([spatial.x0, spatial.y0, spatial.z0]).astype(float)
+        self.maximum = bbox[1] #np.array([spatial.x1, spatial.y1, spatial.z1]).astype(float)
 
-        self.x0, self.y0, self.z0 = spatial.x0, spatial.y0, spatial.z0
-        self.x1, self.y1, self.z1 = spatial.x1, spatial.y1, spatial.z1
+        self.x0, self.y0, self.z0 = bbox[0][0], bbox[0][1], bbox[0][2]
+        self.x1, self.y1, self.z1 = bbox[1][0], bbox[1][1], bbox[1][2]
         
 
     def make_cmap(self): 
