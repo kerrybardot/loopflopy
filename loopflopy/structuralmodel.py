@@ -31,12 +31,13 @@ class StructuralModel:
         self.norm = norm
         self.cmap = matplotlib.colors.LinearSegmentedColormap.from_list("", tuples)
 
-    def plot_transects(self, transect_x, transect_y, nx, ny, nz):
+    def plot_xtransects(self, transect_x, ny, nz, **kwargs):
         
-        # N-S TRANSECTS
-        x0, y0, z0 = self.x0, self.y0, self.z0
-        x1, y1, z1 = self.x1, self.y1, self.z1
-
+        y0 = kwargs.get('y0', self.y0)
+        z0 = kwargs.get('z0', self.z0)
+        y1 = kwargs.get('y1', self.y1)
+        z1 = kwargs.get('z1', self.z1)
+            
         z = np.linspace(z0, z1, nz)
         y = np.linspace(y0, y1, ny)
         Y,Z = np.meshgrid(y,z)
@@ -45,7 +46,7 @@ class StructuralModel:
         ticks = [i + 0.5 for i in np.arange(0,len(labels))]
         labels = self.strat_names[1:]
         
-        plt.figure(figsize=(10, 8))
+        plt.figure(figsize=(12, 8))
         for i, n in enumerate(transect_x):
             X = np.zeros_like(Y)
             X[:,:] = n
@@ -62,35 +63,44 @@ class StructuralModel:
             
             cbar = plt.colorbar(csa,
                                 boundaries=np.arange(0,len(labels)+1),
-                                shrink = 0.8
+                                shrink = 1.0
                                 )
-            cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 10, verticalalignment = 'center')    
+            cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 8, verticalalignment = 'center')    
             plt.title("x = " + str(transect_x[i]), size = 8)
             plt.ylabel('Elev. (mAHD)')
         plt.show()
         
-        # W-E TRANSECTS
+    def plot_ytransects(self, transect_y, nx, nz, **kwargs):
+        
+        x0 = kwargs.get('x0', self.x0)
+        z0 = kwargs.get('z0', self.z0)
+        x1 = kwargs.get('x1', self.x1)
+        z1 = kwargs.get('z1', self.z1)
         
         z = np.linspace(z0, z1, nz)
         x = np.linspace(x0, x1, nx)
         X,Z = np.meshgrid(x,z)
+
+        labels = self.strat_names[1:]
+        ticks = [i + 0.5 for i in np.arange(0,len(labels))]
+        labels = self.strat_names[1:]
         
-        plt.figure(figsize=(10, 8))
+        plt.figure(figsize=(12, 8))
         for i, n in enumerate(transect_y):
             Y = np.zeros_like(X)
             Y[:,:] = n
             plt.subplot(len(transect_y), 1, i+1)
             V = self.model.evaluate_model(np.array([X.flatten(),Y.flatten(),Z.flatten()]).T).reshape(np.shape(Y))
-            plt.imshow(np.ma.masked_where(V<0,V), origin = "lower", extent = [x0,x1,z0,z1], cmap = self.cmap, norm = self.norm, aspect = 'auto') 
+            csa = plt.imshow(np.ma.masked_where(V<0,V), origin = "lower", extent = [x0,x1,z0,z1], cmap = self.cmap, norm = self.norm, aspect = 'auto') 
             if i < (len(transect_y)-1):
                 plt.xticks(ticks = [], labels = [])
             else:
                 plt.xlabel('Northing (m)')
             cbar = plt.colorbar(csa,
                                 boundaries=np.arange(0,len(labels)+1),
-                                shrink = 0.8
+                                shrink = 1.0
                                 )
-            cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 10, verticalalignment = 'center')    
+            cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 8, verticalalignment = 'center')    
             plt.title("y = " + str(transect_y[i]), size = 8)
             plt.ylabel('Elev. (mAHD)')
         plt.show()

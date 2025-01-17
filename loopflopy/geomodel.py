@@ -395,34 +395,57 @@ class Geomodel:
         run_time = datetime.now() - t0
         print('Time taken = ', run_time.total_seconds())
 
-    def geomodel_plan_lith(self, spatial, mesh, structuralmodel, X0, Y0, X1, Y1):
+    def geomodel_plan_lith(self, spatial, mesh, structuralmodel, **kwargs):
+        x0 = kwargs.get('y0', spatial.x0)
+        y0 = kwargs.get('y0', spatial.y0)
+        x1 = kwargs.get('y1', spatial.x1)
+        y1 = kwargs.get('y1', spatial.y1)
+
         fig = plt.figure(figsize = (10, 6))
         ax = plt.subplot(111)
         ax.set_title('surface geology', size = 10)
         mapview = flopy.plot.PlotMapView(modelgrid=self.vgrid, layer = 0)
-        plan = mapview.plot_array(self.surf_lith, cmap=self.cmap, alpha=0.8)
+        plan = mapview.plot_array(self.surf_lith, cmap=structuralmodel.cmap, alpha=0.8)
         ax.set_xlabel('x (m)', size = 10)
         ax.set_ylabel('y (m)', size = 10)
-        ticks = [i + 0.5 for i in np.arange(0,self.nlg)]
-        cbar = plt.colorbar(plan,
-                            boundaries=np.arange(0,self.nlg+1),
-                            shrink = 0.4
-                            )
-        cbar.ax.set_yticks(ticks = ticks, labels = structuralmodel.strat_names[1:], size = 10, verticalalignment = 'center')    
+        
+        labels = structuralmodel.strat_names[1:]
+        ticks = [i + 0.5 for i in np.arange(0,len(labels))]
+        labels = structuralmodel.strat_names[1:]
+
+        cbar = plt.colorbar(plan, boundaries=np.arange(0,len(labels)+1), shrink = 1.0)
+        cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 8, verticalalignment = 'center')    
+        
+        
+        #ticks = [i + 0.5 for i in np.arange(0,self.nlg)]
+        #cbar = plt.colorbar(plan,
+        #                    boundaries=np.arange(0,self.nlg+1),
+        #                    shrink = 0.8
+        #                    )
+        #cbar.ax.set_yticks(ticks = ticks, labels = structuralmodel.strat_names[1:], size = 10, verticalalignment = 'center')    
         if mesh.plangrid == 'car': mesh.sg.plot(color = 'black', lw = 0.2) 
         if mesh.plangrid == 'tri': mesh.tri.plot(edgecolor='black', lw = 0.2)
         if mesh.plangrid == 'vor': mesh.vor.plot(edgecolor='black', lw = 0.2)
-        ax.plot([X0, X1], [Y0, Y1], color = 'black', lw = 1)
+        ax.plot([x0, x1], [y0, y1], color = 'black', lw = 1)
+        
         plt.tight_layout()  
+        plt.show()
 
-
-    def geomodel_transect_lith(self, structuralmodel, X0, Y0, X1, Y1):
+    def geomodel_transect_lith(self, structuralmodel, spatial, **kwargs):
+        x0 = kwargs.get('y0', spatial.x0)
+        y0 = kwargs.get('y0', spatial.y0)
+        z0 = kwargs.get('z0', self.z0)
+        x1 = kwargs.get('y1', spatial.x1)
+        y1 = kwargs.get('y1', spatial.y1)
+        z1 = kwargs.get('z1', self.z1)
+    
         fig = plt.figure(figsize = (12,2))
         ax = plt.subplot(111)
-        xsect = flopy.plot.PlotCrossSection(modelgrid=self.vgrid , line={"line": [(X0, Y0),(X1, Y1)]}, geographic_coords=True)
+        xsect = flopy.plot.PlotCrossSection(modelgrid=self.vgrid , line={"line": [(x0, y0),(x1, y1)]}, geographic_coords=True)
         csa = xsect.plot_array(a = self.lith_disv, cmap = self.cmap, alpha=0.8)
         ax.set_xlabel('x (m)', size = 10)
         ax.set_ylabel('z (m)', size = 10)
+        ax.set_ylim([z0, z1])
         linecollection = xsect.plot_grid(lw = 0.1, color = 'black') # Don't plot grid for reference
         ticks = [i + 0.5 for i in np.arange(0,self.nlg)]
         cbar = plt.colorbar(csa,
@@ -430,6 +453,7 @@ class Geomodel:
                             shrink = 0.8
                             )
         cbar.ax.set_yticks(ticks = ticks, labels = structuralmodel.strat_names[1:], size = 10, verticalalignment = 'center')    
+        plt.title(f"x0, x1, y0, y1 = {x0:.0f}, {x1:.0f}, {y0:.0f}, {y1:.0f}", size=8)
         plt.tight_layout()  
         plt.show()   
 

@@ -335,14 +335,14 @@ class Mesh:
             if group == 'obs':
                 for i in range(len(spatial.obsbore_gdf)):
                     x,y = spatial.obsbore_gdf.geometry.iloc[i].xy
-                    ax.plot(x, y, '-o', ms = 5, lw = 1, color='blue') ###########
+                    ax.plot(x, y, '-o', ms = 2, lw = 1, color='blue') ###########
                 #for cell in self.obs_cells:  
                 #    ax.plot(self.cell2d[cell][1], self.cell2d[cell][2], "o", color = 'black', ms = 1)############
             
             if group == 'wel':
                 for i in range(len(spatial.pumpbore_gdf)):
                     x,y = spatial.pumpbore_gdf.geometry.iloc[i].xy
-                    ax.plot(x, y, '-o', ms = 5, lw = 1, color='red')
+                    ax.plot(x, y, '-o', ms = 2, lw = 1, color='red')
                 #for cell in self.wel_cells:
                 #    ax.plot(self.cell2d[cell][1], self.cell2d[cell][2], "o", color = 'blue', ms = 2)
 
@@ -356,7 +356,7 @@ class Mesh:
                     ax.plot(x, y, '-o', ms = 2, lw = 0.5, color='green') 
         # Colorbar
         cbar_ax = fig.add_subplot(spec[1])
-        cbar = fig.colorbar(p, cax=cbar_ax, ticks=np.unique(self.ibd)+0.5, shrink = 0.4)  # Center tick labels
+        cbar = fig.colorbar(p, cax=cbar_ax, ticks=np.unique(self.ibd)+0.5, shrink = 0.2)  # Center tick labels
         cbar.ax.set_yticklabels(self.cell_type) # Custom tick labels
 
     def plot_problem_cell(self, geomodel, spatial, x, y, xlim = None, ylim = None):
