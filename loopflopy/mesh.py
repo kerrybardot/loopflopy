@@ -9,9 +9,15 @@ from flopy.utils.triangle import Triangle as Triangle
 from flopy.utils.voronoi import VoronoiGrid
 
 class Mesh:    
-    def __init__(self, plangrid, special_cells):       
+    def __init__(self, plangrid, **kwargs):       
         self.plangrid = plangrid
-        self.special_cells = special_cells
+        
+        # Unpack kwargs
+        special_cells = kwargs.get('special_cells', None)
+        if special_cells is not None:
+            self.special_cells = special_cells
+        else:
+            print("No special cells")
         
         #setattr(self, group, [])
 
@@ -85,6 +91,7 @@ class Mesh:
     def prepare_nodes_and_polygons(self, spatial, node_list, polygon_list):
         self.nodes = []
         for n in node_list: # e.g. n could be "faults_nodes"
+            print(n)
             points = getattr(spatial, n)
             if type(points) == list:            
                 for point in points: 
@@ -113,15 +120,23 @@ class Mesh:
             delc = self.dely * np.ones(self.nrow, dtype=float)
             top  = np.ones((self.nrow, self.ncol), dtype=float)
             botm = np.zeros((1, self.nrow, self.ncol), dtype=float)
+            print(spatial.x0, spatial.y0)
             sg = flopy.discretization.StructuredGrid(delr=delr, delc=delc, top=top, botm=botm, xoff = spatial.x0, yoff = spatial.y0)
             xyzcenters = sg.xyzcellcenters
-            
+            self.xyzcenters = xyzcenters
+            xcenters = self.xyzcenters[0][0]
+            ycenters = [self.xyzcenters[1][i][0] for i in range(self.nrow)]
+            #ycenters = ycenters[::-1]
+            self.xcenters, self.ycenters = xcenters, ycenters
+
             cell2d = []
             xcyc = [] # added 
             for n in range(self.nrow*self.ncol):
                 l,r,c = sg.get_lrc(n)[0]
-                xc = xyzcenters[0][0][c]
-                yc = xyzcenters[0][1][r]
+                xc = xcenters[c]
+                yc = ycenters[r]
+                #xc = xyzcenters[0][0][c]
+                #yc = xyzcenters[0][1][r]
                 iv1 = c + r * (self.ncol + 1)  # upper left
                 iv2 = iv1 + 1
                 iv3 = iv2 + self.ncol + 1
@@ -132,7 +147,7 @@ class Mesh:
             vertices = []
             xa = np.arange(spatial.x0, spatial.x1 + self.delx, self.delx)      
             ya = np.arange(spatial.y1, spatial.y0 - self.dely/2, -self.dely)
-    
+            self.xa, self.ya = xa, ya
             n = 0
             for j in ya:
                 for i in xa:
@@ -150,7 +165,7 @@ class Mesh:
             self.idomain = np.zeros((self.ncpl))
             for icpl in cells_within_bd:
                 self.idomain[icpl] = 1
-            #self.vgrid = flopy.discretization.VertexGrid(vertices=self.vertices, cell2d=self.cell2d, ncpl = self.ncpl, nlay = 1, idomain = self.idomain)
+            
             
         if self.plangrid == 'tri':
         
