@@ -219,6 +219,7 @@ class Mesh:
         self.obs_cells = [] 
         self.wel_cells = [] 
         self.chd_cells = [] 
+        self.ghb_cells = [] 
         self.poly_cells = []
 
         self.gi = flopy.utils.GridIntersect(self.vgrid)
@@ -269,6 +270,22 @@ class Mesh:
                     
                     for cell in cells:
                         self.chd_cells.append(cell)
+                        self.ibd[cell] = flag
+                    flag += 1
+
+            if group == 'ghb':    
+                for i, subgroup in enumerate(subgroups): # e.g. for 'west' in chd    
+                    self.cell_type.append(f'{group} - {subgroup}')
+                    att_name = f"ghb_{subgroup}_ls"
+                    ls = getattr(spatial, att_name)
+                    
+                    cells = self.gi.intersects(ls)["cellids"]
+
+                    att_name = f"ghb_{subgroup}_cells"
+                    setattr(self, att_name, cells)
+                    
+                    for cell in cells:
+                        self.ghb_cells.append(cell)
                         self.ibd[cell] = flag
                     flag += 1
                     
@@ -375,6 +392,10 @@ class Mesh:
 
             if group == 'chd':
                 for cell in self.chd_cells:
+                    ax.plot(self.cell2d[cell][1], self.cell2d[cell][2], "o", color = 'red', ms = 1)
+
+            if group == 'ghb':
+                for cell in self.ghb_cells:
                     ax.plot(self.cell2d[cell][1], self.cell2d[cell][2], "o", color = 'red', ms = 1)
 
             if group == 'zone':
