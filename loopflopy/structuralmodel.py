@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 import matplotlib.colors
 
 class StructuralModel:
-    print("hello") 
     def __init__(self, spatial, bbox, geodata_fname, data_sheetname, strat_sheetname):
         self.geodata_fname = geodata_fname
         self.data_sheetname = data_sheetname
@@ -17,7 +16,7 @@ class StructuralModel:
         self.x1, self.y1, self.z1 = bbox[1][0], bbox[1][1], bbox[1][2]
         
 
-    def make_cmap(self): 
+    '''def make_cmap(self): 
         stratcolors = []
         for i in range(1,len(self.strat)):
             R = self.strat.R.loc[i].item() / 255
@@ -29,7 +28,7 @@ class StructuralModel:
         norm=plt.Normalize(min(cvals),max(cvals))
         tuples = list(zip(map(norm,cvals), stratcolors))
         self.norm = norm
-        self.cmap = matplotlib.colors.LinearSegmentedColormap.from_list("", tuples)
+        self.cmap = matplotlib.colors.LinearSegmentedColormap.from_list("", tuples)'''
 
     def plot_xtransects(self, transect_x, ny, nz, **kwargs):
         
@@ -43,8 +42,8 @@ class StructuralModel:
         Y,Z = np.meshgrid(y,z)
 
         labels = self.strat_names[1:]
-        ticks = [i + 0.5 for i in np.arange(0,len(labels))]
-        labels = self.strat_names[1:]
+        ticks = [i for i in np.arange(0,len(labels))]
+        boundaries = np.arange(-1,len(labels),1)+0.5
         
         plt.figure(figsize=(12, 8))
         for i, n in enumerate(transect_x):
@@ -58,11 +57,9 @@ class StructuralModel:
                 plt.xticks(ticks = [], labels = [])
             else:
                 plt.xlabel('Easting (m)')
-            #cbar = plt.colorbar(shrink = 0.9)
-            #cbar.ax.set_yticks(ticks = ticks, labels = self.strat_names, size = 10) #verticalalignment = 'center')
             
             cbar = plt.colorbar(csa,
-                                boundaries=np.arange(0,len(labels)+1),
+                                boundaries = boundaries,
                                 shrink = 1.0
                                 )
             cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 8, verticalalignment = 'center')    
@@ -82,8 +79,8 @@ class StructuralModel:
         X,Z = np.meshgrid(x,z)
 
         labels = self.strat_names[1:]
-        ticks = [i + 0.5 for i in np.arange(0,len(labels))]
-        labels = self.strat_names[1:]
+        ticks = [i for i in np.arange(0,len(labels))]
+        boundaries = np.arange(-1,len(labels),1)+0.5
         
         plt.figure(figsize=(12, 8))
         for i, n in enumerate(transect_y):
@@ -97,7 +94,7 @@ class StructuralModel:
             else:
                 plt.xlabel('Northing (m)')
             cbar = plt.colorbar(csa,
-                                boundaries=np.arange(0,len(labels)+1),
+                                boundaries=boundaries,
                                 shrink = 1.0
                                 )
             cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 8, verticalalignment = 'center')    

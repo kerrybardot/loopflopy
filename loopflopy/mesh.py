@@ -219,6 +219,7 @@ class Mesh:
         self.obs_cells = [] 
         self.wel_cells = [] 
         self.chd_cells = [] 
+        self.poly_cells = []
 
         self.gi = flopy.utils.GridIntersect(self.vgrid)
         self.ibd = np.zeros(self.ncpl, dtype=int) # empty array top shade important cells
@@ -271,16 +272,24 @@ class Mesh:
                         self.ibd[cell] = flag
                     flag += 1
                     
+            if group == 'poly':    
+                for i, subgroup in enumerate(subgroups): # e.g. for 'river1' in poly   
+                    self.cell_type.append(f'{group} - {subgroup}')
+                    att_name = f"{subgroup}_poly"
+                    poly = getattr(spatial, att_name)
+                    
+                    cells = []
+                    for i in self.xcyc:
+                        point = Point((i[0], i[1]))
+                        if poly.contains(point):
+                            cell = self.gi.intersect(point)["cellids"][0]
+                            cells.append(cell)
+                            self.ibd[cell] = flag
+                    att_name = f"poly_{subgroup}_cells"
+                    setattr(self, att_name, cells)
+                    
+                    flag += 1
             
-            #flag += 1
-            
-            #stream_cells = []
-            #for i in mesh.xcyc:
-            #    point = Point((i[0], i[1]))
-            #    cell = mesh.gi.intersect(point)["cellids"]
-            #    if spatial.streams_poly.contains(point):
-            #        mesh.ibd[cell[0]] = 3
-            #        stream_cells.append(cell[0])
     def plot_cell2d(self, spatial, features = None, xlim = None, ylim = None):
         
         fig = plt.figure(figsize=(7,7))
@@ -314,6 +323,9 @@ class Mesh:
         
         if 'fault' in features:
             spatial.faults_gdf.plot(ax=ax, color = 'red', zorder=2)
+
+        if 'river' in features:
+            spatial.river_gdf.plot(ax=ax, color = 'blue', alpha = 0.4, zorder=2)
             
     def plot_feature_cells(self, spatial, xlim = None, ylim = None): # e.g xlim = [700000, 707500]
         
@@ -324,8 +336,8 @@ class Mesh:
         spec = gridspec.GridSpec(nrows=1, ncols=2, width_ratios=[1, 0.05], wspace=0.2)
 
         ax = fig.add_subplot(spec[0], aspect="equal") #plt.subplot(1, 1, 1, aspect="auto")
-        ax.set_xlim(xlim) 
-        ax.set_ylim(ylim) 
+        if xlim: ax.set_xlim(xlim) 
+        if ylim: ax.set_ylim(ylim) 
         ax.set_title('Special cells')
             
         pmv = flopy.plot.PlotMapView(ax = ax, modelgrid=self.vgrid)
@@ -342,7 +354,7 @@ class Mesh:
         p = pmv.plot_array(ma, alpha = 0.6, cmap = cmap, norm = norm)
         
         if self.plangrid == 'car': self.sg.plot(ax=ax, color = 'gray', lw = 0.4) 
-        if self.plangrid == 'tri': self.tri.plot(ax=ax, edgecolor='gray', lw = 0.4)
+        #if self.plangrid == 'tri': self.tri.plot(ax=ax, edgecolor='gray', lw = 0.4)
         if self.plangrid == 'vor': self.vor.plot(ax=ax, edgecolor='black', lw = 0.4)  
         
         for group in self.special_cells:

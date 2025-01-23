@@ -33,8 +33,23 @@ def remove_duplicate_points(polygon):
     # Apply to a GeoDataFrame
     #spatial.model_boundary_gdf['geometry'] = spatial.model_boundary_gdf['geometry'].apply(remove_duplicate_points)
 
-def resample_poly(gdf, distance): # gdf contains a single polygon
+def resample_gdf_poly(gdf, distance): # gdf contains a single polygon
     poly = gdf.geometry[0]    
+    exterior_coords = list(poly.exterior.coords)    
+    exterior_line = LineString(exterior_coords)
+    resampled_line = []
+    current_distance = 0
+    while current_distance <= exterior_line.length - distance:
+        resampled_line.append(exterior_line.interpolate(current_distance))
+        current_distance += distance
+    coords = []
+    for point in resampled_line:
+        x,y = point.x, point.y
+        coords.append((x,y))
+    poly_resampled = Polygon(coords) # Keep polygons as Shapely polygons
+    return(poly_resampled) # Returns a Shapely polygon
+
+def resample_shapely_poly(poly, distance): # gdf contains a single polygon 
     exterior_coords = list(poly.exterior.coords)    
     exterior_line = LineString(exterior_coords)
     resampled_line = []

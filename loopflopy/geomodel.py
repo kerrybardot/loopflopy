@@ -412,7 +412,7 @@ class Geomodel:
 
         mapview = flopy.plot.PlotMapView(modelgrid=self.vgrid, layer = 0)
         
-        plan = mapview.plot_array(self.surf_lith, cmap=self.cmap, alpha=0.8)
+        plan = mapview.plot_array(self.surf_lith, cmap=structuralmodel.cmap, alpha=0.8)
         ax.set_xlabel('x (m)', size = 10)
         ax.set_ylabel('y (m)', size = 10)
         
@@ -449,7 +449,7 @@ class Geomodel:
         fig = plt.figure(figsize = (12,4))
         ax = plt.subplot(111)
         xsect = flopy.plot.PlotCrossSection(modelgrid=self.vgrid , line={"line": [(x0, y0),(x1, y1)]}, geographic_coords=True)
-        csa = xsect.plot_array(a = self.lith_disv, cmap = self.cmap, alpha=0.8)
+        csa = xsect.plot_array(a = self.lith_disv, cmap = structuralmodel.cmap, alpha=0.8)
         ax.set_xlabel('x (m)', size = 10)
         ax.set_ylabel('z (m)', size = 10)
         ax.set_ylim([z0, z1])
@@ -464,18 +464,18 @@ class Geomodel:
         plt.tight_layout()  
         plt.show()   
 
-    def make_cmap(self, structuralmodel): 
-        stratcolors = []
-        for i in range(1,len(structuralmodel.strat)):
-            R = structuralmodel.strat.R.loc[i].item() / 255
-            G = structuralmodel.strat.G.loc[i].item() / 255
-            B = structuralmodel.strat.B.loc[i].item() / 255
-            stratcolors.append([round(R, 2), round(G, 2), round(B, 2)])
-        cvals = np.arange(1,self.nlg) 
-        norm=plt.Normalize(min(cvals),max(cvals))
-        tuples = list(zip(map(norm,cvals), stratcolors))
-        self.norm = norm
-        self.cmap = matplotlib.colors.LinearSegmentedColormap.from_list("", tuples)
+    #def make_cmap(self, structuralmodel): 
+    #    stratcolors = []
+    #    for i in range(1,len(structuralmodel.strat)):
+    #        R = structuralmodel.strat.R.loc[i].item() / 255
+    #        G = structuralmodel.strat.G.loc[i].item() / 255
+    #        B = structuralmodel.strat.B.loc[i].item() / 255
+    #        stratcolors.append([round(R, 2), round(G, 2), round(B, 2)])
+    #    cvals = np.arange(1,self.nlg) 
+    #    norm=plt.Normalize(min(cvals),max(cvals))
+    #    tuples = list(zip(map(norm,cvals), stratcolors))
+    #    self.norm = norm
+    #    self.cmap = matplotlib.colors.LinearSegmentedColormap.from_list("", tuples)
 
     def get_surface_lith(self):
         lith = self.lith_disv
