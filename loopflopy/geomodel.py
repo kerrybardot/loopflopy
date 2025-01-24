@@ -416,25 +416,17 @@ class Geomodel:
         ax.set_xlabel('x (m)', size = 10)
         ax.set_ylabel('y (m)', size = 10)
         
-        labels = self.strat_names[1:]
+        labels = structuralmodel.strat_names[1:]
         ticks = [i for i in np.arange(0,len(labels))]
-        boundaries = np.arange(-1,len(labels),1)+0.5
-
-        #cbar = plt.colorbar(plan, boundaries=np.arange(0,len(labels)+1), shrink = 1.0)
-        #cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 8, verticalalignment = 'center')    
+        boundaries = np.arange(-1,len(labels),1)+0.5       
         
-        
-        ticks = [i + 0.5 for i in np.arange(0,self.nlg)]
-        cbar = plt.colorbar(plan,
-                            boundaries = boundaries,
-                            shrink = 0.8
-                            )
-        cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 10, verticalalignment = 'center')    
-
         ax.plot([x0, x1], [y0, y1], color = 'black', lw = 1)
         for node in spatial.interface_nodes:
             ax.plot(node[0], node[1], 'o', color = 'black', markersize = 2)
-        
+        cbar = plt.colorbar(plan,
+                    boundaries = boundaries,
+                    shrink = 1.0)
+        cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 8, verticalalignment = 'center')   
         plt.tight_layout()  
         plt.show()
 
@@ -455,15 +447,15 @@ class Geomodel:
         ax.set_ylim([z0, z1])
         #linecollection = xsect.plot_grid(lw = 0.1, color = 'black') # Don't plot grid for reference
         
-        labels = self.strat_names[1:]
+        labels = structuralmodel.strat_names[1:]
         ticks = [i for i in np.arange(0,len(labels))]
         boundaries = np.arange(-1,len(labels),1)+0.5
 
         cbar = plt.colorbar(csa,
                             boundaries = boundaries,
-                            shrink = 0.8
+                            shrink = 1.0
                             )
-        cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 10, verticalalignment = 'center')    
+        cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 8, verticalalignment = 'center')    
         plt.title(f"x0, x1, y0, y1 = {x0:.0f}, {x1:.0f}, {y0:.0f}, {y1:.0f}", size=8)
         plt.tight_layout()  
         plt.show()   
