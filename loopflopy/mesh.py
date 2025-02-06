@@ -311,14 +311,16 @@ class Mesh:
         
         fig = plt.figure(figsize=(7,7))
         ax = plt.subplot(1, 1, 1, aspect='auto')
-        ax.set_xlim(xlim)
-        ax.set_ylim(ylim)
+        if xlim: ax.set_xlim(xlim) 
+        if ylim: ax.set_ylim(ylim) 
         ax.set_title('Number cells in plan (ncpl): ' + str(len(self.cell2d)))
     
         if self.plangrid == 'car': self.sg.plot(ax = ax, color = 'gray', lw = 0.4) 
         if self.plangrid == 'tri': self.tri.plot(ax = ax, edgecolor='gray', lw = 0.4)
         if self.plangrid == 'vor': self.vor.plot(ax = ax, edgecolor='black', lw = 0.4)
-            
+        
+        pmv = flopy.plot.PlotMapView(ax = ax, modelgrid=self.vgrid)
+
         for i in self.xcyc: 
                 ax.plot(i[0], i[1], 'o', color = 'green', ms = 0.5)    
         for i in self.nodes: 

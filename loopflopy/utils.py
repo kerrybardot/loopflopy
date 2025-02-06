@@ -28,6 +28,23 @@ from datetime import datetime
 
 # logfunc = lambda e: np.log10(e)
 
+import pkgutil
+def list_modules(package):
+    package_path = package.__path__
+    modules = [name for _, name, _ in pkgutil.iter_modules(package_path)]
+    return modules
+
+def print_object_details(obj):
+    all_attributes_methods = dir(obj)
+    methods = [attr for attr in all_attributes_methods if callable(getattr(obj, attr)) and not attr.startswith("__")]
+    variables = [attr for attr in all_attributes_methods if not callable(getattr(obj, attr)) and not attr.startswith("__")]
+
+    print('Methods:')
+    for method in methods: print(method)
+    print("\nVariables")
+    for variable in variables: print(variable)
+
+
 def find_kji(cell,nlay,nrow,ncol): #cellid is zerobased
     cellid = cell - 1
     k = math.floor(cellid/(ncol*nrow)) # Zero based

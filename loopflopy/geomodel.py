@@ -238,6 +238,7 @@ class Geomodel:
                     self.lith[lay,:] *= lay_geo
                     
             #self.botm_geo = botm_geo
+            print('con, line 241', self.lith.shape)
             self.botm = botm
             self.idomain = idomain
             self.nlay = self.nlg * self.nls
@@ -309,6 +310,7 @@ class Geomodel:
             self.botm = botm
             self.idomain = idomain
             self.lith = lith
+            print('con 2, line 312', self.lith.shape)
             self.lith_disv = lith
             self.nlay = nlay
             
@@ -344,6 +346,7 @@ class Geomodel:
         
         # First create an array for cellids in layered version  (before we pop cells that are absent)
         self.cellid_disv = np.empty_like(self.lith, dtype = int)
+        print('hi ', self.lith.shape)
         self.cellid_disu = -1 * np.ones_like(self.lith, dtype = int)
         i = 0
         for lay in range(self.nlay):
