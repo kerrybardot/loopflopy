@@ -105,6 +105,13 @@ def disvcell_to_disucell(geomodel, disvcell): # zerobased
     disucell = geomodel.cellid_disu.flatten()[disvcell]
     return disucell
 
+def disucell_to_layicpl(geomodel, disucell): # zerobased
+    nlay, ncpl = geomodel.cellid_disv.shape
+    disvcell = np.where(geomodel.cellid_disu.flatten()==disucell)[0][0]  
+    lay  = math.floor(disvcell/ncpl) # Zero based
+    icpl = math.floor(disvcell - lay * ncpl) # Zero based
+    return (lay,icpl)
+
 def xyz_to_discell(x, y, x0, y1, dx, dy):
     col = int((x - x0)/dx)
     row = int((y1 - y)/dy)
@@ -113,7 +120,6 @@ def xyz_to_discell(x, y, x0, y1, dx, dy):
     return (col, row, cell_coords)
 
 def disucell_to_xyz(geomodel, disucell): # zerobased
-    import math
     nlay, ncpl = geomodel.cellid_disv.shape
     disvcell = np.where(geomodel.cellid_disu.flatten()==disucell)[0][0]  
     lay  = math.floor(disvcell/ncpl) # Zero based
@@ -191,4 +197,60 @@ def get_q_disu(spd, flowja, gwf, staggered):
         qmag.append(np.sqrt(qx[i]**2 + qy[i]**2 + qz[i]**2))
         qdir.append(math.degrees(math.atan(qz[i]/qx[i])))      
     return(qmag,qx,qy,qz,qdir)
+
+def plot_node(node, spatial, sim, scenario, vmin = None, vmax = None): # array needs to be a string of a property eg. 'k11', 'angle2'
+
+    x, y, z = utils.disucell_to_xyz(geomodel, node)
+    
+    print("Node one based = ", node + 1, "Node zero based = ", node)
+    print("XYZ problem = ", x,y,z)
+
+    gwf = sim.get_model(scenario)
+    xv = gwf.modelgrid.xyzvertices[0][node]
+    yv = gwf.modelgrid.xyzvertices[1][node]
+    zv_top = gwf.modelgrid.xyzvertices[2][0][node]
+    zv_bot = gwf.modelgrid.xyzvertices[2][1][node]
+    xv, yv, zv_top, zv_bot
+    print('cell width approx ', max(xv) - min(xv))
+    print('cell length approx ', max(yv) - min(yv))
+    print('cell thickness', zv_top - zv_bot)
+    print('lay, icpl', utils.disucell_to_layicpl(geomodel, node))
+
+    a = gwf.npf.k.get_data()
+    fig = plt.figure(figsize = (10,3))
+    ax = plt.subplot(121)
+    ax.set_title("West-East Transect\nY = %i" %(Y))
+    xsect = flopy.plot.PlotCrossSection(modelgrid=gwf.modelgrid, line={"line": [(spatial.x0, Y),(spatial.x1, Y)]},
+                                        geographic_coords=True)
+    csa = xsect.plot_array(a = a, cmap = 'Spectral', alpha=0.8, vmin = vmin, vmax = vmax)
+    ax.plot(X, Z, 'o', color = 'red')
+    ax.set_xlabel('x (m)', size = 10)
+    ax.set_ylabel('z (m)', size = 10)
+    linecollection = xsect.plot_grid(lw = 0.1, color = 'black') 
+    
+    ax = plt.subplot(122)
+    ax.set_title("South-North Transect\nX = %i" %(X))
+    xsect = flopy.plot.PlotCrossSection(modelgrid=gwf.modelgrid, line={"line": [(X, spatial.y0),(X, spatial.y1)]},
+                                        geographic_coords=True)
+    csa = xsect.plot_array(a = a, cmap = 'Spectral', alpha=0.8, vmin = vmin, vmax = vmax)
+    ax.plot(Y, Z, 'o', color = 'red')
+    ax.set_xlabel('y (m)', size = 10)
+    ax.set_ylabel('z (m)', size = 10)
+    #ax.set_xlim([1000, 3000])
+    #ax.set_ylim([-68, -48])
+    linecollection = xsect.plot_grid(lw = 0.1, color = 'black') 
+    
+    fig = plt.figure(figsize = (6,6))
+    ax = plt.subplot(111)
+    ax.set_title("Plan")
+    mapview = flopy.plot.PlotMapView(modelgrid=gwf.modelgrid, layer = 0)#, geographic_coords=True)
+    plan = mapview.plot_array(a = a, cmap = 'Spectral', alpha=0.8, vmin = vmin, vmax = vmax)
+    ax.plot(X, Y, 'o', color = 'red')
+    ax.set_xlabel('x (m)', size = 10)
+    ax.set_ylabel('y (m)', size = 10)
+    linecollection = mapview.plot_grid(lw = 0.1, color = 'black') 
+    
+    #plt.colorbar(csa, shrink = 0.7)
+    plt.tight_layout()  
+    plt.show()  
 

@@ -33,7 +33,7 @@ class Flowmodel:
         # -------------- SIM -------------------------
         sim = flopy.mf6.MFSimulation(sim_name = 'sim', 
                                      version = 'mf6',
-                                     exe_name = self.project.mfexe_name, 
+                                     exe_name = self.project.mfexe, 
                                      sim_ws = self.project.workspace)
 
         # -------------- TDIS -------------------------
@@ -274,6 +274,7 @@ class Flowmodel:
         return watertable
 
     def plot_watertable(self, spatial, mesh, geomodel, flowmodel, watertable, extent = None, vmin = None, vmax = None):
+        
         fig = plt.figure(figsize = (8,6))
         ax = plt.subplot(111)
         ax.set_title(flowmodel.scenario, size = 10)
@@ -296,7 +297,7 @@ class Flowmodel:
         if mesh.plangrid == 'car': mesh.sg.plot(color = 'black', lw = 0.2) 
         if mesh.plangrid == 'tri': mesh.tri.plot(edgecolor='black', lw = 0.2)
         if mesh.plangrid == 'vor': mesh.vor.plot(edgecolor='black', lw = 0.2)
-        ax.plot([extent[0], extent[1]], [extent[2], extent[3]], color = 'black', lw = 1)
+        if extent: ax.plot([extent[0], extent[1]], [extent[2], extent[3]], color = 'black', lw = 1)
         plt.tight_layout() 
 
     def plot_plan(self, spatial, mesh, array, layer, extent = None, vmin = None, vmax = None, vectors = None):
@@ -325,4 +326,23 @@ class Flowmodel:
         if mesh.plangrid == 'vor': mesh.vor.plot(ax = ax, edgecolor='black', lw = 0.2)
         ax.plot([extent[0], extent[1]], [extent[2], extent[3]], color = 'black', lw = 1)
         plt.tight_layout() 
+
+    def plot_transect(self, spatial, array, X0, X1, Y0, Y1, vmin = None, vmax = None, vectors = None): # array needs to be a string of a property eg. 'k11', 'angle2'
+
+        fig = plt.figure(figsize = (8,3))
+        ax = plt.subplot(111)
+        ax.set_title(self.scenario, size = 10)
+      
+        xsect = flopy.plot.PlotCrossSection(model=self.gwf, line={"line": [(X0, Y0),(X1, Y1)]}, 
+                                            #extent = [P.x0,P.x1,P.z0,P.z1], 
+                                            geographic_coords=True)
+        xsect.plot_grid(lw = 0.5, color = 'black') 
+        csa = xsect.plot_array(a = getattr(self, array), cmap = 'Spectral', alpha=0.8, vmin = vmin, vmax = vmax)
+        ax.set_xlabel('x (m)', size = 10)
+        ax.set_ylabel('z (m)', size = 10)
+        plt.colorbar(csa, shrink = 0.4)
+
+        plt.tight_layout()  
+        plt.show()    
+    
 

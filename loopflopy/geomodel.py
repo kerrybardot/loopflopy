@@ -155,7 +155,7 @@ class Geomodel:
             
             # Arrays for geo arrays
             #top = P.z1 * np.ones((mesh.ncpl), dtype=float)
-            top_geo    = np.zeros((mesh.ncpl), dtype=float) # bottom elevation of each geological layer
+            top_geo     = 9999 * np.ones((mesh.ncpl), dtype=float) # empty array to fill in ground surface
             botm_geo    = np.zeros((self.nlg, mesh.ncpl), dtype=float) # bottom elevation of each geological layer
             thick_geo   = np.zeros((self.nlg, mesh.ncpl), dtype=float) # geo layer thickness
             idomain_geo = np.zeros((self.nlg, mesh.ncpl), dtype=float)      # idomain array for each lithology
@@ -168,23 +168,23 @@ class Geomodel:
                 start, stop =  start_stop_arr(strat_log)
                 start = np.unique(start)
                 stop = np.unique(stop)
-                #if icpl == 616:
-                    #print(strat_log)
-                    #print(present)
-                    #print(start)
-                    #print(stop)
+                if icpl == 2635:
+                    print(strat_log)
+                    print(present)
+                    print(start)
+                    print(stop)
                 for i, lith in enumerate(present):           
                     if lith < 0:
                         top_geo[icpl] = z1 - (stop[i]+1) * dz     
-                        #if icpl == 610:
-                            #print('lith = ', lith)
-                            #print(' top_geo = ', z1 - (stop[i]+1) * dz)
+                        if icpl == 2635:
+                            print('lith = ', lith)
+                            print(' top_geo = ', z1 - (stop[i]+1) * dz)
                     if lith >= 0:
                         idomain_geo[lith, icpl] = 1
                         botm_geo[lith, icpl] = z1 - (stop[i]+1) * dz
-                        #if icpl == 610:
-                            #print('lith = ', lith)
-                            #print(' botm_geo = ', z1 - (stop[i]+1) * dz)
+                        if icpl == 2635:
+                            print('lith = ', lith)
+                            print(' botm_geo = ', z1 - (stop[i]+1) * dz)
                 for lay_geo in range(self.nlg):
                     if idomain_geo[lay_geo, icpl] == 0: # if pinched out geological layer...
                         if lay_geo == 0:

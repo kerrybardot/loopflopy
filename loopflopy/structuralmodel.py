@@ -50,7 +50,7 @@ class StructuralModel:
             X = np.zeros_like(Y)
             X[:,:] = n
             plt.subplot(len(transect_x), 1, i+1)
-            print(X.flatten().shape,Y.flatten().shape,Z.flatten().shape)
+            #print(X.flatten().shape,Y.flatten().shape,Z.flatten().shape)
             V = self.model.evaluate_model(np.array([X.flatten(),Y.flatten(),Z.flatten()]).T).reshape(np.shape(X))
             csa = plt.imshow(np.ma.masked_where(V<0,V), origin = "lower", extent = [y0,y1,z0,z1], aspect = 'auto', cmap = self.cmap, norm = self.norm)
             if i < (len(transect_x)-1):
