@@ -273,13 +273,17 @@ class Flowmodel:
     
         return watertable
 
-    def plot_watertable(self, spatial, mesh, geomodel, flowmodel, watertable, extent = None, vmin = None, vmax = None):
+    def plot_watertable(self, spatial, mesh, geomodel, flowmodel, watertable, **kwargs):
+        x0 = kwargs.get('x0', spatial.x0)
+        y0 = kwargs.get('y0', spatial.y0)
+        x1 = kwargs.get('x1', spatial.x1)
+        y1 = kwargs.get('y1', spatial.y1)
         
         fig = plt.figure(figsize = (8,6))
         ax = plt.subplot(111)
         ax.set_title(flowmodel.scenario, size = 10)
         mapview = flopy.plot.PlotMapView(modelgrid=geomodel.vgrid)#, layer = layer)
-        plan = mapview.plot_array(watertable, cmap='Spectral', alpha=0.8, vmin = vmin, vmax = vmax)
+        plan = mapview.plot_array(watertable, cmap='Spectral', alpha=0.8)#, vmin = vmin, vmax = vmax)
         #if vectors:
         #    mapview.plot_vector(flowmodel.spd["qx"], flowmodel.spd["qy"], alpha=0.5)
         ax.set_xlabel('x (m)', size = 10)
@@ -297,7 +301,7 @@ class Flowmodel:
         if mesh.plangrid == 'car': mesh.sg.plot(color = 'black', lw = 0.2) 
         if mesh.plangrid == 'tri': mesh.tri.plot(edgecolor='black', lw = 0.2)
         if mesh.plangrid == 'vor': mesh.vor.plot(edgecolor='black', lw = 0.2)
-        if extent: ax.plot([extent[0], extent[1]], [extent[2], extent[3]], color = 'black', lw = 1)
+        #ax.plot([extent[0], extent[1]], [extent[2], extent[3]], color = 'black', lw = 1)
         plt.tight_layout() 
 
     def plot_plan(self, spatial, mesh, array, layer, extent = None, vmin = None, vmax = None, vectors = None):
@@ -327,13 +331,19 @@ class Flowmodel:
         ax.plot([extent[0], extent[1]], [extent[2], extent[3]], color = 'black', lw = 1)
         plt.tight_layout() 
 
-    def plot_transect(self, spatial, array, X0, X1, Y0, Y1, vmin = None, vmax = None, vectors = None): # array needs to be a string of a property eg. 'k11', 'angle2'
-
+    def plot_transect(self, spatial, array, 
+                      vmin = None, vmax = None, vectors = None,
+                      **kwargs): # array needs to be a string of a property eg. 'k11', 'angle2'
+        x0 = kwargs.get('x0', spatial.x0)
+        y0 = kwargs.get('y0', spatial.y0)
+        x1 = kwargs.get('x1', spatial.x1)
+        y1 = kwargs.get('y1', spatial.y1)
+    
         fig = plt.figure(figsize = (8,3))
         ax = plt.subplot(111)
         ax.set_title(self.scenario, size = 10)
       
-        xsect = flopy.plot.PlotCrossSection(model=self.gwf, line={"line": [(X0, Y0),(X1, Y1)]}, 
+        xsect = flopy.plot.PlotCrossSection(model=self.gwf, line={"line": [(x0, y0),(x1, y1)]}, 
                                             #extent = [P.x0,P.x1,P.z0,P.z1], 
                                             geographic_coords=True)
         xsect.plot_grid(lw = 0.5, color = 'black') 

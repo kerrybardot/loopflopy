@@ -70,7 +70,8 @@ class Geomodel:
         print('   Creating Geomodel (lithology and discretisation arrays) for ', self.scenario, ' ...')
         t0 = datetime.now()
         
-        self.nlg = len(structuralmodel.strat_names) -1 # take away 1 for ground       
+        self.strat_names = structuralmodel.strat_names[1:]
+        self.nlg = len(self.strat_names)  
         z0, z1 = self.z0, self.z1
         
         def reshape_loop2mf(array):
@@ -114,6 +115,7 @@ class Geomodel:
             litho = np.flip(litho, 0)
             self.lith = litho
             self.lith_disv = litho
+            print('117', self.lith_disv.shape)
             
             angle1, angle2 = [], []
             for i in range(len(vf)):  
@@ -238,11 +240,16 @@ class Geomodel:
                     self.lith[lay,:] *= lay_geo
                     
             #self.botm_geo = botm_geo
-            print('con, line 241', self.lith.shape)
             self.botm = botm
             self.idomain = idomain
             self.nlay = self.nlg * self.nls
             self.lith_disv = self.lith
+            self.model_layers = [] # This creates a list of flow model layers for every geological
+            for i in range(self.nlg):
+                a = []
+                for j in range(self.nls):
+                    a.append(i * self.nls + j)
+                self.model_layers.append(a)
                     
         #----- CON - CREATE LITH, BOTM AND IDOMAIN ARRAYS (PILLAR METHOD, PICKS UP PINCHED OUT LAYERS) ------#    
         if self.vertgrid == 'con2':
@@ -312,6 +319,7 @@ class Geomodel:
             self.lith = lith
             print('con 2, line 312', self.lith.shape)
             self.lith_disv = lith
+            print('316', self.lith_disv.shape)
             self.nlay = nlay
             
         if self.vertgrid == 'con' or self.vertgrid == 'con2' :
@@ -346,7 +354,8 @@ class Geomodel:
         
         # First create an array for cellids in layered version  (before we pop cells that are absent)
         self.cellid_disv = np.empty_like(self.lith, dtype = int)
-        print('hi ', self.lith.shape)
+        print('357', self.lith_disv.shape)
+        print('357', self.cellid_disv.shape)
         self.cellid_disu = -1 * np.ones_like(self.lith, dtype = int)
         i = 0
         for lay in range(self.nlay):
@@ -355,7 +364,7 @@ class Geomodel:
                 if self.idomain[lay, icpl] != -1:
                     self.cellid_disu[lay, icpl] = i
                     i += 1
-        self.ncell_disv = len(self.cellid_disv.flatten())
+        self.ncell_disv = self.cellid_disv.size
         self.ncell_disu = np.count_nonzero(self.cellid_disu != -1)
         
 #---------- PROP ARRAYS (VOX and CON) -----   
@@ -415,7 +424,7 @@ class Geomodel:
 
         mapview = flopy.plot.PlotMapView(modelgrid=self.vgrid, layer = 0)
         
-        plan = mapview.plot_array(self.surf_lith, cmap=structuralmodel.cmap, alpha=0.8)
+        plan = mapview.plot_array(self.surf_lith, cmap=structuralmodel.cmap, norm = structuralmodel.norm, alpha=0.8)
         ax.set_xlabel('x (m)', size = 10)
         ax.set_ylabel('y (m)', size = 10)
         
@@ -444,7 +453,7 @@ class Geomodel:
         fig = plt.figure(figsize = (12,4))
         ax = plt.subplot(111)
         xsect = flopy.plot.PlotCrossSection(modelgrid=self.vgrid , line={"line": [(x0, y0),(x1, y1)]}, geographic_coords=True)
-        csa = xsect.plot_array(a = self.lith_disv, cmap = structuralmodel.cmap, alpha=0.8)
+        csa = xsect.plot_array(a = self.lith_disv, cmap = structuralmodel.cmap, norm = structuralmodel.norm, alpha=0.8)
         ax.set_xlabel('x (m)', size = 10)
         ax.set_ylabel('z (m)', size = 10)
         ax.set_ylim([z0, z1])
@@ -462,19 +471,6 @@ class Geomodel:
         plt.title(f"x0, x1, y0, y1 = {x0:.0f}, {x1:.0f}, {y0:.0f}, {y1:.0f}", size=8)
         plt.tight_layout()  
         plt.show()   
-
-    #def make_cmap(self, structuralmodel): 
-    #    stratcolors = []
-    #    for i in range(1,len(structuralmodel.strat)):
-    #        R = structuralmodel.strat.R.loc[i].item() / 255
-    #        G = structuralmodel.strat.G.loc[i].item() / 255
-    #        B = structuralmodel.strat.B.loc[i].item() / 255
-    #        stratcolors.append([round(R, 2), round(G, 2), round(B, 2)])
-    #    cvals = np.arange(1,self.nlg) 
-    #    norm=plt.Normalize(min(cvals),max(cvals))
-    #    tuples = list(zip(map(norm,cvals), stratcolors))
-    #    self.norm = norm
-    #    self.cmap = matplotlib.colors.LinearSegmentedColormap.from_list("", tuples)
 
     def get_surface_lith(self):
         lith = self.lith_disv

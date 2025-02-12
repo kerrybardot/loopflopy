@@ -409,43 +409,4 @@ class Mesh:
         cbar = fig.colorbar(p, cax=cbar_ax, ticks=np.unique(self.ibd)+0.5, shrink = 0.2)  # Center tick labels
         cbar.ax.set_yticklabels(self.cell_type) # Custom tick labels
 
-    def plot_problem_cell(self, geomodel, spatial, x, y, xlim = None, ylim = None):
     
-        fig = plt.figure(figsize=(7,7))
-        ax = plt.subplot(1, 1, 1, aspect="auto")
-        ax.set_xlim(xlim) 
-        ax.set_ylim(ylim) 
-
-        if self.plangrid == 'car': self.sg.plot(ax=ax, color = 'gray', lw = 0.4) 
-        if self.plangrid == 'tri': self.tri.plot(ax=ax, edgecolor='gray', lw = 0.4)
-        if self.plangrid == 'vor': self.vor.plot(ax=ax, edgecolor='black', lw = 0.4)  
-            
-        pmv = flopy.plot.PlotMapView(ax = ax, modelgrid=self.vgrid)
-        
-        mask = self.idomain[0] == -1
-        ma = np.ma.masked_where(mask, self.ibd)
-        p = pmv.plot_array(geomodel.idomain, alpha = 0.6)
-        ax.plot(x, y, '-o', ms = 10, lw = 1, color='red') ###########
-        plt.colorbar(p, shrink = 0.5)
-        
-
-
-
-
-
-
-
-
-
-
-
-
-            
-
-        
-
-            
-
-
-
-

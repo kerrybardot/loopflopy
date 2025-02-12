@@ -81,23 +81,32 @@ class StructuralModel:
         labels = self.strat_names[1:]
         ticks = [i for i in np.arange(0,len(labels))]
         boundaries = np.arange(-1,len(labels),1)+0.5
+
         
-        plt.figure(figsize=(12, 8))
         for i, n in enumerate(transect_y):
+            fig = plt.figure(figsize=(12, 8))
+            ax = plt.subplot(len(transect_y), 1, i+1)
             Y = np.zeros_like(X)
             Y[:,:] = n
-            plt.subplot(len(transect_y), 1, i+1)
+
+            # Evaluate model to plot lithology
             V = self.model.evaluate_model(np.array([X.flatten(),Y.flatten(),Z.flatten()]).T).reshape(np.shape(Y))
-            csa = plt.imshow(np.ma.masked_where(V<0,V), origin = "lower", extent = [x0,x1,z0,z1], cmap = self.cmap, norm = self.norm, aspect = 'auto') 
+            csa = ax.imshow(np.ma.masked_where(V<0,V), origin = "lower", extent = [x0,x1,z0,z1], cmap = self.cmap, norm = self.norm, aspect = 'auto') 
+
+            # Evaluate faults to plot
+            for fault in self.faults:
+                F = self.model.evaluate_feature_value(fault, np.array([X.flatten(),Y.flatten(),Z.flatten()]).T).reshape(np.shape(Y))
+                ax.contour(X, Z, F, levels = [0], colors = 'Black', linewidths=2., linestyles = 'dashed') 
             if i < (len(transect_y)-1):
-                plt.xticks(ticks = [], labels = [])
+                ax.set_xticks(ticks = [], labels = [])
             else:
-                plt.xlabel('Northing (m)')
+                ax.set_xlabel('Northing (m)')
             cbar = plt.colorbar(csa,
+                                ax=ax,
                                 boundaries=boundaries,
                                 shrink = 1.0
                                 )
             cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 8, verticalalignment = 'center')    
-            plt.title("y = " + str(transect_y[i]), size = 8)
-            plt.ylabel('Elev. (mAHD)')
-        plt.show()
+            ax.set_title("y = " + str(transect_y[i]), size = 8)
+            ax.set_ylabel('Elev. (mAHD)')
+            plt.show()

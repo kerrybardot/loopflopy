@@ -156,7 +156,7 @@ def ch_flow(chdflow):
         if chdflow[j][2]<0: flow_in  += chdflow[j][2]      
     return((flow_in, flow_out))
 
-def get_q_disu(spd, flowja, gwf, staggered):
+def get_q_disu(d2d, spd, flowja, gwf, staggered):
     import math
     import flopy
     qx, qy, qz = flopy.utils.postprocessing.get_specific_discharge(spd, gwf)
@@ -198,9 +198,9 @@ def get_q_disu(spd, flowja, gwf, staggered):
         qdir.append(math.degrees(math.atan(qz[i]/qx[i])))      
     return(qmag,qx,qy,qz,qdir)
 
-def plot_node(node, spatial, sim, scenario, vmin = None, vmax = None): # array needs to be a string of a property eg. 'k11', 'angle2'
+def plot_node(node, geomodel, structuralmodel, spatial, sim, scenario, vmin = None, vmax = None): # array needs to be a string of a property eg. 'k11', 'angle2'
 
-    x, y, z = utils.disucell_to_xyz(geomodel, node)
+    x, y, z = disucell_to_xyz(geomodel, node)
     
     print("Node one based = ", node + 1, "Node zero based = ", node)
     print("XYZ problem = ", x,y,z)
@@ -214,26 +214,36 @@ def plot_node(node, spatial, sim, scenario, vmin = None, vmax = None): # array n
     print('cell width approx ', max(xv) - min(xv))
     print('cell length approx ', max(yv) - min(yv))
     print('cell thickness', zv_top - zv_bot)
-    print('lay, icpl', utils.disucell_to_layicpl(geomodel, node))
+    print('lay, icpl', disucell_to_layicpl(geomodel, node))
 
-    a = gwf.npf.k.get_data()
-    fig = plt.figure(figsize = (10,3))
-    ax = plt.subplot(121)
-    ax.set_title("West-East Transect\nY = %i" %(Y))
-    xsect = flopy.plot.PlotCrossSection(modelgrid=gwf.modelgrid, line={"line": [(spatial.x0, Y),(spatial.x1, Y)]},
+    #a = gwf.npf.k.get_data()
+    a = geomodel.lith
+    labels = structuralmodel.strat_names[1:]
+    ticks = [i for i in np.arange(0,len(labels))]
+    boundaries = np.arange(-1,len(labels),1)+0.5   
+
+    fig = plt.figure(figsize = (10,6))
+    ax = plt.subplot(211)
+    ax.set_title("West-East Transect\n,Y =  %i" %(y))
+    xsect = flopy.plot.PlotCrossSection(modelgrid=gwf.modelgrid, line={"line": [(spatial.x0, y),(spatial.x1, y)]},
                                         geographic_coords=True)
-    csa = xsect.plot_array(a = a, cmap = 'Spectral', alpha=0.8, vmin = vmin, vmax = vmax)
-    ax.plot(X, Z, 'o', color = 'red')
+
+
+    csa = xsect.plot_array(a = a, cmap = structuralmodel.cmap, norm = structuralmodel.norm, 
+                           alpha=0.8, vmin = vmin, vmax = vmax)
+    
+    ax.plot(x, z, 'o', color = 'red')
     ax.set_xlabel('x (m)', size = 10)
     ax.set_ylabel('z (m)', size = 10)
     linecollection = xsect.plot_grid(lw = 0.1, color = 'black') 
     
-    ax = plt.subplot(122)
-    ax.set_title("South-North Transect\nX = %i" %(X))
-    xsect = flopy.plot.PlotCrossSection(modelgrid=gwf.modelgrid, line={"line": [(X, spatial.y0),(X, spatial.y1)]},
+    ax = plt.subplot(212)
+    ax.set_title("South-North Transect\nX = %i" %(x))
+    xsect = flopy.plot.PlotCrossSection(modelgrid=gwf.modelgrid, line={"line": [(x, spatial.y0),(x, spatial.y1)]},
                                         geographic_coords=True)
-    csa = xsect.plot_array(a = a, cmap = 'Spectral', alpha=0.8, vmin = vmin, vmax = vmax)
-    ax.plot(Y, Z, 'o', color = 'red')
+    csa = xsect.plot_array(a = a, cmap = structuralmodel.cmap, norm = structuralmodel.norm,
+                            alpha=0.8, vmin = vmin, vmax = vmax)
+    ax.plot(y, z, 'o', color = 'red')
     ax.set_xlabel('y (m)', size = 10)
     ax.set_ylabel('z (m)', size = 10)
     #ax.set_xlim([1000, 3000])
@@ -244,13 +254,16 @@ def plot_node(node, spatial, sim, scenario, vmin = None, vmax = None): # array n
     ax = plt.subplot(111)
     ax.set_title("Plan")
     mapview = flopy.plot.PlotMapView(modelgrid=gwf.modelgrid, layer = 0)#, geographic_coords=True)
-    plan = mapview.plot_array(a = a, cmap = 'Spectral', alpha=0.8, vmin = vmin, vmax = vmax)
-    ax.plot(X, Y, 'o', color = 'red')
+    plan = mapview.plot_array(a = a, cmap = structuralmodel.cmap, norm = structuralmodel.norm,
+                               alpha=0.8, vmin = vmin, vmax = vmax)
+    
+    ax.plot(x, y, 'o', color = 'red')
     ax.set_xlabel('x (m)', size = 10)
     ax.set_ylabel('y (m)', size = 10)
     linecollection = mapview.plot_grid(lw = 0.1, color = 'black') 
     
-    #plt.colorbar(csa, shrink = 0.7)
+    cbar = plt.colorbar(plan, boundaries = boundaries, shrink = 0.5)
+    cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 8, verticalalignment = 'center')   
     plt.tight_layout()  
     plt.show()  
 
