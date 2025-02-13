@@ -1,6 +1,7 @@
 import sys
 import os
 
+print('Hello Malvina!')
 class Project:
     def __init__(self, name, workspace, results, figures, triexe, mfexe):
         self.name = name

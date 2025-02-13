@@ -353,10 +353,10 @@ class Geomodel:
         t0 = datetime.now()
         
         # First create an array for cellids in layered version  (before we pop cells that are absent)
-        self.cellid_disv = np.empty_like(self.lith, dtype = int)
+        self.cellid_disv = np.empty_like(self.lith_disv, dtype = int)
         print('357', self.lith_disv.shape)
         print('357', self.cellid_disv.shape)
-        self.cellid_disu = -1 * np.ones_like(self.lith, dtype = int)
+        self.cellid_disu = -1 * np.ones_like(self.lith_disv, dtype = int)
         i = 0
         for lay in range(self.nlay):
             for icpl in range(mesh.ncpl):
@@ -368,18 +368,18 @@ class Geomodel:
         self.ncell_disu = np.count_nonzero(self.cellid_disu != -1)
         
 #---------- PROP ARRAYS (VOX and CON) -----   
-        self.k11    = np.empty_like(self.lith, dtype = float)
-        self.k22    = np.empty_like(self.lith, dtype = float)
-        self.k33    = np.empty_like(self.lith, dtype = float)
-        self.ss     = np.empty_like(self.lith, dtype = float)
-        self.sy     = np.empty_like(self.lith, dtype = float)
+        self.k11    = np.empty_like(self.lith_disv, dtype = float)
+        self.k22    = np.empty_like(self.lith_disv, dtype = float)
+        self.k33    = np.empty_like(self.lith_disv, dtype = float)
+        self.ss     = np.empty_like(self.lith_disv, dtype = float)
+        self.sy     = np.empty_like(self.lith_disv, dtype = float)
 
         for n in range(self.nlg):  # replace lithologies with parameters
-            self.k11[self.lith==n] = self.hk_perlay[n] 
-            self.k22[self.lith==n] = self.hk_perlay[n] 
-            self.k33[self.lith==n] = self.vk_perlay[n] 
-            self.ss[self.lith==n]  = self.ss_perlay[n]
-            self.sy[self.lith==n]  = self.sy_perlay[n]
+            self.k11[self.lith_disv==n] = self.hk_perlay[n] 
+            self.k22[self.lith_disv==n] = self.hk_perlay[n] 
+            self.k33[self.lith_disv==n] = self.vk_perlay[n] 
+            self.ss[self.lith_disv==n]  = self.ss_perlay[n]
+            self.sy[self.lith_disv==n]  = self.sy_perlay[n]
                    
         # Force all K tensor angles in fault zone to 0 (Loop can't calculate angles in faulted area properly yet!)
         if 'spatial.fault_poly' in globals(): #if hassattr(P,"fault_poly"):
@@ -391,14 +391,16 @@ class Geomodel:
                         self.angle2[lay,icpl] = 0   
         ######################################
         
-        self.lith   = self.lith[self.cellid_disu != -1].flatten()
+        self.lith   = self.lith_disv[self.cellid_disu != -1].flatten()
         self.k11    = self.k11[self.cellid_disu != -1].flatten()
         self.k22    = self.k22[self.cellid_disu != -1].flatten()
         self.k33    = self.k33[self.cellid_disu != -1].flatten()
         self.ss     = self.ss[self.cellid_disu != -1].flatten()
         self.sy     = self.sy[self.cellid_disu != -1].flatten()
-        self.angle1 = self.angle1[self.cellid_disu != -1].flatten()
-        self.angle2 = self.angle2[self.cellid_disu != -1].flatten()
+        print(self.angle1.shape)
+        print(self.cellid_disu[self.cellid_disu != -1].size)
+        #self.angle1 = self.angle1[self.cellid_disu != -1].flatten()
+        #self.angle2 = self.angle2[self.cellid_disu != -1].flatten()
         self.angle3 = np.zeros_like(self.angle1, dtype = float)  # Angle 3 always at 0
         
         self.logk11    = logfunc(self.k11)
