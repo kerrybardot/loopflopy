@@ -45,7 +45,7 @@ class StructuralModel:
         ticks = [i for i in np.arange(0,len(labels))]
         boundaries = np.arange(-1,len(labels),1)+0.5
         
-        plt.figure(figsize=(12, 8))
+        plt.figure(figsize=(8, 3))
         for i, n in enumerate(transect_x):
             X = np.zeros_like(Y)
             X[:,:] = n
@@ -65,6 +65,7 @@ class StructuralModel:
             cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 8, verticalalignment = 'center')    
             plt.title("x = " + str(transect_x[i]), size = 8)
             plt.ylabel('Elev. (mAHD)')
+        plt.savefig('../figures/structural_xtransects.png')
         plt.show()
         
     def plot_ytransects(self, transect_y, nx, nz, **kwargs):
@@ -84,7 +85,7 @@ class StructuralModel:
 
         
         for i, n in enumerate(transect_y):
-            fig = plt.figure(figsize=(12, 8))
+            fig = plt.figure(figsize=(8, 3))
             ax = plt.subplot(len(transect_y), 1, i+1)
             Y = np.zeros_like(X)
             Y[:,:] = n
@@ -109,4 +110,5 @@ class StructuralModel:
             cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 8, verticalalignment = 'center')    
             ax.set_title("y = " + str(transect_y[i]), size = 8)
             ax.set_ylabel('Elev. (mAHD)')
+            plt.savefig('../figures/structural_ytransects.png')
             plt.show()

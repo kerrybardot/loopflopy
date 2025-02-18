@@ -337,7 +337,7 @@ class Mesh:
 
         if 'wel' in features:
             spatial.pumpbore_gdf.plot(ax=ax, markersize = 12, color = 'red', zorder=2) 
-            for x, y, label in zip(spatial.pumpbore_gdf.geometry.x, spatial.pumpbore_gdf.geometry.y, spatial.pumpbore_gdf.id):
+            for x, y, label in zip(spatial.pumpbore_gdf.geometry.x, spatial.pumpbore_gdf.geometry.y, spatial.pumpbore_gdf.ID):
                 ax.annotate(label, xy=(x, y), xytext=(2, 2), size = 8, textcoords="offset points")
         
         if 'fault' in features:
@@ -345,6 +345,8 @@ class Mesh:
 
         if 'river' in features:
             spatial.river_gdf.plot(ax=ax, color = 'blue', alpha = 0.4, zorder=2)
+
+        plt.savefig('../figures/mesh.png')
             
     def plot_feature_cells(self, spatial, xlim = None, ylim = None): # e.g xlim = [700000, 707500]
         
@@ -408,5 +410,7 @@ class Mesh:
         cbar_ax = fig.add_subplot(spec[1])
         cbar = fig.colorbar(p, cax=cbar_ax, ticks=np.unique(self.ibd)+0.5, shrink = 0.2)  # Center tick labels
         cbar.ax.set_yticklabels(self.cell_type) # Custom tick labels
+
+        plt.savefig('../figures/special_cells.png')
 
     

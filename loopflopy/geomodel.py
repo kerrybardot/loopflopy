@@ -117,12 +117,12 @@ class Geomodel:
             self.lith_disv = litho
             print('117', self.lith_disv.shape)
             
-            angle1, angle2 = [], []
+            ang1, ang2 = [], []
             for i in range(len(vf)):  
-                angle1.append(find_angle1(vf[i]))
-                angle2.append(find_angle2(vf[i]))
-            self.angle1  = reshape_loop2mf(np.asarray(angle1))
-            self.angle2  = reshape_loop2mf(np.asarray(angle2))
+                ang1.append(find_angle1(vf[i]))
+                ang2.append(find_angle2(vf[i]))
+            self.ang1  = reshape_loop2mf(np.asarray(ang1))
+            self.ang2  = reshape_loop2mf(np.asarray(ang2))
             
 #---------- CON AND CON2  Finding geological layers bottoms ------#
 
@@ -332,15 +332,28 @@ class Geomodel:
                     #xyz=np.array(xyz)
             vf = structuralmodel.model.evaluate_model_gradient(xyz) # generates an array indicating gradient for every cell
             
-            angle1, angle2 = [], []
+            ang1, ang2 = [], []
             for i in range(len(vf)):  
-                angle1.append(find_angle1(vf[i]))
-                angle2.append(find_angle2(vf[i]))
+                ang1.append(find_angle1(vf[i]))
+                ang2.append(find_angle2(vf[i]))
             
-            self.angle1  = reshape_loop2mf(np.asarray(angle1))
-            self.angle2  = reshape_loop2mf(np.asarray(angle2))
+            self.ang1  = reshape_loop2mf(np.asarray(ang1))
+            self.ang2  = reshape_loop2mf(np.asarray(ang2))
             
         self.nnodes_div = len(self.botm.flatten())   
+
+        # Save model layer thicknesses as (lay, icpl) array
+        self.thick = np.zeros((self.nlay, mesh.ncpl))
+        self.thick[0,:] = self.top_geo - self.botm[0]
+        self.thick[1:-1,:] = self.botm[0:-2] - self.botm[1:-1]
+        self.thick.min()
+
+        # Save cell centres z value as (lay, icpl) array
+        self.zc = np.zeros((self.nlay, mesh.ncpl))
+        for lay in range(self.nlay):
+            for icpl in range(mesh.ncpl):
+                self.zc[lay, icpl] = self.botm[lay, icpl] + self.thick[lay, icpl]/2
+
         t1 = datetime.now()
         run_time = t1 - t0
         print('Time taken = ', run_time.total_seconds())
@@ -354,8 +367,6 @@ class Geomodel:
         
         # First create an array for cellids in layered version  (before we pop cells that are absent)
         self.cellid_disv = np.empty_like(self.lith_disv, dtype = int)
-        print('357', self.lith_disv.shape)
-        print('357', self.cellid_disv.shape)
         self.cellid_disu = -1 * np.ones_like(self.lith_disv, dtype = int)
         i = 0
         for lay in range(self.nlay):
@@ -373,6 +384,7 @@ class Geomodel:
         self.k33    = np.empty_like(self.lith_disv, dtype = float)
         self.ss     = np.empty_like(self.lith_disv, dtype = float)
         self.sy     = np.empty_like(self.lith_disv, dtype = float)
+        self.iconvert = np.empty_like(self.lith_disv, dtype = float)
 
         for n in range(self.nlg):  # replace lithologies with parameters
             self.k11[self.lith_disv==n] = self.hk_perlay[n] 
@@ -380,15 +392,16 @@ class Geomodel:
             self.k33[self.lith_disv==n] = self.vk_perlay[n] 
             self.ss[self.lith_disv==n]  = self.ss_perlay[n]
             self.sy[self.lith_disv==n]  = self.sy_perlay[n]
+            self.iconvert[self.lith_disv==n]  = self.iconvert_perlay[n]
                    
         # Force all K tensor angles in fault zone to 0 (Loop can't calculate angles in faulted area properly yet!)
-        if 'spatial.fault_poly' in globals(): #if hassattr(P,"fault_poly"):
+        '''if 'spatial.fault_poly' in globals(): #if hassattr(P,"fault_poly"):
             for icpl in range(mesh.ncpl):
                 point = Point(mesh.xcyc[icpl])
                 if spatial.fault_poly.contains(point):
                     for lay in range(self.nlay):
-                        self.angle1[lay,icpl] = 0  
-                        self.angle2[lay,icpl] = 0   
+                        self.ang1[lay,icpl] = 0  
+                        self.ang2[lay,icpl] = 0 '''  
         ######################################
         
         self.lith   = self.lith_disv[self.cellid_disu != -1].flatten()
@@ -397,12 +410,15 @@ class Geomodel:
         self.k33    = self.k33[self.cellid_disu != -1].flatten()
         self.ss     = self.ss[self.cellid_disu != -1].flatten()
         self.sy     = self.sy[self.cellid_disu != -1].flatten()
-        print(self.angle1.shape)
+        self.iconvert     = self.iconvert[self.cellid_disu != -1].flatten()
+        print('ang1 shape ', self.ang1.shape)
         print(self.cellid_disu[self.cellid_disu != -1].size)
-        #self.angle1 = self.angle1[self.cellid_disu != -1].flatten()
-        #self.angle2 = self.angle2[self.cellid_disu != -1].flatten()
+        #a1, a2 = self.ang1.reshape((self.nlay, self.ncpl)), self.ang2.reshape((self.nlay, self.ncpl))
+        self.angle1 = self.ang1[self.cellid_disu != -1].flatten()
+        self.angle2 = self.ang2[self.cellid_disu != -1].flatten()
         self.angle3 = np.zeros_like(self.angle1, dtype = float)  # Angle 3 always at 0
         
+        print('angle1 shape ', self.angle1.shape)
         self.logk11    = logfunc(self.k11)
         self.logk22    = logfunc(self.k22)
         self.logk33    = logfunc(self.k33)
@@ -472,6 +488,7 @@ class Geomodel:
         cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 8, verticalalignment = 'center')    
         plt.title(f"x0, x1, y0, y1 = {x0:.0f}, {x1:.0f}, {y0:.0f}, {y1:.0f}", size=8)
         plt.tight_layout()  
+        plt.savefig('../figures/geomodel_transect.png')
         plt.show()   
 
     def get_surface_lith(self):

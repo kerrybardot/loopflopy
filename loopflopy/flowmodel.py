@@ -17,6 +17,9 @@ class Flowmodel:
         self.mesh = mesh
         self.geomodel = geomodel
         self.observations = observations
+        self.lith = geomodel.lith
+        self.logk11 = geomodel.logk11
+        self.logk33 = geomodel.logk33
 
         self.xt3d = True
         self.staggered = True
@@ -96,7 +99,7 @@ class Flowmodel:
                                                        angle2 = self.geomodel.angle2,
                                                        angle3 = self.geomodel.angle3, 
                                                        #angle1 = 0., angle2 = 0., angle3 = 0.,
-                                                       icelltype = 1,
+                                                       icelltype = self.geomodel.iconvert,
                                                        save_flows = True, 
                                                        save_specific_discharge = True,)
                                                        #dev_minimum_saturated_thickness = 1)# try 0.1 then 0.001... no more than 1m!
@@ -107,10 +110,10 @@ class Flowmodel:
          # -------------- WEL / STO -------------------------
     
         if transient and self.wel:  
-            print('coo coo')
+
             sto = flopy.mf6.modflow.mfgwfsto.ModflowGwfsto(gwf, 
                                                            storagecoefficient=None, 
-                                                           iconvert=1, 
+                                                           iconvert=self.geomodel.iconvert, 
                                                            ss = self.geomodel.ss, 
                                                            sy = self.geomodel.sy)
             wel = flopy.mf6.modflow.mfgwfwel.ModflowGwfwel(gwf, 
@@ -303,6 +306,7 @@ class Flowmodel:
         if mesh.plangrid == 'vor': mesh.vor.plot(edgecolor='black', lw = 0.2)
         #ax.plot([extent[0], extent[1]], [extent[2], extent[3]], color = 'black', lw = 1)
         plt.tight_layout() 
+        plt.savefig('../figures/watertable.png')
 
     def plot_plan(self, spatial, mesh, array, layer, extent = None, vmin = None, vmax = None, vectors = None):
         
@@ -330,14 +334,17 @@ class Flowmodel:
         if mesh.plangrid == 'vor': mesh.vor.plot(ax = ax, edgecolor='black', lw = 0.2)
         ax.plot([extent[0], extent[1]], [extent[2], extent[3]], color = 'black', lw = 1)
         plt.tight_layout() 
+        plt.savefig('../figures/plan_%s.png' % array)
 
-    def plot_transect(self, spatial, array, 
+    def plot_transect(self, spatial, structuralmodel, array, 
                       vmin = None, vmax = None, vectors = None,
                       **kwargs): # array needs to be a string of a property eg. 'k11', 'angle2'
         x0 = kwargs.get('x0', spatial.x0)
         y0 = kwargs.get('y0', spatial.y0)
+        z0 = kwargs.get('z0', structuralmodel.z0)
         x1 = kwargs.get('x1', spatial.x1)
         y1 = kwargs.get('y1', spatial.y1)
+        z1 = kwargs.get('z1', structuralmodel.z1)
     
         fig = plt.figure(figsize = (8,3))
         ax = plt.subplot(111)
@@ -350,9 +357,11 @@ class Flowmodel:
         csa = xsect.plot_array(a = getattr(self, array), cmap = 'Spectral', alpha=0.8, vmin = vmin, vmax = vmax)
         ax.set_xlabel('x (m)', size = 10)
         ax.set_ylabel('z (m)', size = 10)
+        ax.set_ylim([z0,z1])
         plt.colorbar(csa, shrink = 0.4)
 
         plt.tight_layout()  
+        plt.savefig('../figures/transect_%s.png' % array)
         plt.show()    
     
 

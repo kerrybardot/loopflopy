@@ -198,7 +198,15 @@ def get_q_disu(d2d, spd, flowja, gwf, staggered):
         qdir.append(math.degrees(math.atan(qz[i]/qx[i])))      
     return(qmag,qx,qy,qz,qdir)
 
-def plot_node(node, geomodel, structuralmodel, spatial, sim, scenario, vmin = None, vmax = None): # array needs to be a string of a property eg. 'k11', 'angle2'
+def plot_node(node, geomodel, structuralmodel, spatial, sim, scenario, features, **kwargs): # array needs to be a string of a property eg. 'k11', 'angle2'
+    x0 = kwargs.get('x0', spatial.x0)
+    y0 = kwargs.get('y0', spatial.y0)
+    z0 = kwargs.get('z0', geomodel.z0)
+    x1 = kwargs.get('x1', spatial.x1)
+    y1 = kwargs.get('y1', spatial.y1)
+    z1 = kwargs.get('z1', geomodel.z1)
+    vmin = kwargs.get('vmin', None)
+    vmax = kwargs.get('vmax', None)
 
     x, y, z = disucell_to_xyz(geomodel, node)
     
@@ -224,9 +232,9 @@ def plot_node(node, geomodel, structuralmodel, spatial, sim, scenario, vmin = No
 
     fig = plt.figure(figsize = (10,6))
     ax = plt.subplot(211)
-    ax.set_title("West-East Transect\n,Y =  %i" %(y))
+    ax.set_title("West-East Transect\nY =  %i" %(y))
     xsect = flopy.plot.PlotCrossSection(modelgrid=gwf.modelgrid, line={"line": [(spatial.x0, y),(spatial.x1, y)]},
-                                        geographic_coords=True)
+                                        extent = [x0,x1,z0,z1], geographic_coords=True)
 
 
     csa = xsect.plot_array(a = a, cmap = structuralmodel.cmap, norm = structuralmodel.norm, 
@@ -240,15 +248,14 @@ def plot_node(node, geomodel, structuralmodel, spatial, sim, scenario, vmin = No
     ax = plt.subplot(212)
     ax.set_title("South-North Transect\nX = %i" %(x))
     xsect = flopy.plot.PlotCrossSection(modelgrid=gwf.modelgrid, line={"line": [(x, spatial.y0),(x, spatial.y1)]},
-                                        geographic_coords=True)
+                                        extent = [y0,y1,z0,z1], geographic_coords=True)
     csa = xsect.plot_array(a = a, cmap = structuralmodel.cmap, norm = structuralmodel.norm,
                             alpha=0.8, vmin = vmin, vmax = vmax)
     ax.plot(y, z, 'o', color = 'red')
     ax.set_xlabel('y (m)', size = 10)
     ax.set_ylabel('z (m)', size = 10)
-    #ax.set_xlim([1000, 3000])
-    #ax.set_ylim([-68, -48])
     linecollection = xsect.plot_grid(lw = 0.1, color = 'black') 
+    plt.savefig('../figures/problem_node_%i_section.png' %(node))
     
     fig = plt.figure(figsize = (6,6))
     ax = plt.subplot(111)
@@ -261,9 +268,13 @@ def plot_node(node, geomodel, structuralmodel, spatial, sim, scenario, vmin = No
     ax.set_xlabel('x (m)', size = 10)
     ax.set_ylabel('y (m)', size = 10)
     linecollection = mapview.plot_grid(lw = 0.1, color = 'black') 
+
+    if 'fault' in features:
+        spatial.faults_gdf.plot(ax=ax, color = 'red', zorder=2)
     
     cbar = plt.colorbar(plan, boundaries = boundaries, shrink = 0.5)
     cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 8, verticalalignment = 'center')   
     plt.tight_layout()  
+    plt.savefig('../figures/problem_node_%i_plan.png' %(node))
     plt.show()  
 
