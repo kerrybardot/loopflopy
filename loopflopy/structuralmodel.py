@@ -45,7 +45,7 @@ class StructuralModel:
         ticks = [i for i in np.arange(0,len(labels))]
         boundaries = np.arange(-1,len(labels),1)+0.5
         
-        plt.figure(figsize=(8, 3))
+        plt.figure(figsize=(8, 5))
         for i, n in enumerate(transect_x):
             X = np.zeros_like(Y)
             X[:,:] = n
@@ -85,7 +85,7 @@ class StructuralModel:
 
         
         for i, n in enumerate(transect_y):
-            fig = plt.figure(figsize=(8, 3))
+            fig = plt.figure(figsize=(8, 5))
             ax = plt.subplot(len(transect_y), 1, i+1)
             Y = np.zeros_like(X)
             Y[:,:] = n
