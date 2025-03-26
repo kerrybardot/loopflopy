@@ -161,11 +161,12 @@ class Mesh:
             
             self.vgrid = flopy.discretization.VertexGrid(vertices=self.vertices, cell2d=self.cell2d, ncpl = self.ncpl, nlay = 1)
             self.gi = flopy.utils.GridIntersect(self.vgrid)
-            cells_within_bd = self.gi.intersect(spatial.model_boundary_poly)["cellids"]
-            self.idomain = np.zeros((self.ncpl))
-            for icpl in cells_within_bd:
-                self.idomain[icpl] = 1
             
+            if hasattr(spatial, 'model_boundary_poly'):
+                cells_within_bd = self.gi.intersect(spatial.model_boundary_poly)["cellids"]
+                self.idomain = np.zeros((self.ncpl))
+                for icpl in cells_within_bd:
+                    self.idomain[icpl] = 1
             
         if self.plangrid == 'tri':
         
@@ -330,6 +331,11 @@ class Mesh:
         x, y = spatial.inner_boundary_poly.exterior.xy
         ax.plot(x, y, '-o', ms = 2, lw = 0.5, color='black')
             
+        if 'geo' in features:
+            spatial.geobore_gdf.plot(ax=ax, markersize = 7, color = 'darkblue', zorder=2)
+            for x, y, label in zip(spatial.geobore_gdf.geometry.x, spatial.geobore_gdf.geometry.y, spatial.obsbore_gdf.ID):
+                ax.annotate(label, xy=(x, y), xytext=(2, 2), size = 8, textcoords="offset points")
+
         if 'obs' in features:
             spatial.obsbore_gdf.plot(ax=ax, markersize = 7, color = 'darkblue', zorder=2)
             for x, y, label in zip(spatial.obsbore_gdf.geometry.x, spatial.obsbore_gdf.geometry.y, spatial.obsbore_gdf.ID):

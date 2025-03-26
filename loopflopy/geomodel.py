@@ -54,13 +54,14 @@ def find_angle2(nv): # nv = normal vector to surface
     
 class Geomodel:
     
-    def __init__(self, scenario, vertgrid, z0, z1, **kwargs):     
+    def __init__(self, scenario, vertgrid, z0, z1, transect = False, **kwargs):     
            
         self.scenario = scenario                      
         self.vertgrid = vertgrid     
         self.z0 = z0
         self.z1 = z1
-        
+        self.transect = transect
+
         for key, value in kwargs.items():
             setattr(self, key, value)    
         
@@ -104,7 +105,6 @@ class Geomodel:
                 for i in range(mesh.ncpl):    
                     x, y = mesh.xcyc[i][0], mesh.xcyc[i][1]
                     xyz.append([x,y,z])
-                    #xyz=np.array(xyz)
             
             litho = structuralmodel.model.evaluate_model(xyz)  # generates an array indicating lithology for every cell
             vf = structuralmodel.model.evaluate_model_gradient(xyz) # generates an array indicating gradient for every cell
@@ -115,7 +115,6 @@ class Geomodel:
             litho = np.flip(litho, 0)
             self.lith = litho
             self.lith_disv = litho
-            print('117', self.lith_disv.shape)
             
             ang1, ang2 = [], []
             for i in range(len(vf)):  
@@ -131,20 +130,19 @@ class Geomodel:
             nlay = int((z1 - z0)/self.res)
             dz = (z1 - z0)/nlay # actual resolution
             zc = np.arange(z0 + dz / 2, z1, dz)  # Cell centres
-            
             xyz = []  
             for k in range(nlay):
                 z = zc[k]
                 for i in range(mesh.ncpl):    
                     x, y = mesh.xcyc[i][0], mesh.xcyc[i][1]
                     xyz.append([x,y,z])
-                    
-            
-            litho = structuralmodel.model.evaluate_model(xyz)  # generates an array indicating lithology for every cell
+
+            self.xyz = xyz        
+            litho = structuralmodel.model.evaluate_model(np.array(xyz))  # generates an array indicating lithology for every cell
             litho = np.asarray(litho)
             litho = litho.reshape((nlay, mesh.ncpl)) # Reshape to lay, ncpl
             litho = np.flip(litho, 0)
-            
+            self.litho = litho
 
             def start_stop_arr(initial_list): # Function to look down pillar and pick geo bottoms
                 a = np.asarray(initial_list)
@@ -161,7 +159,7 @@ class Geomodel:
             botm_geo    = np.zeros((self.nlg, mesh.ncpl), dtype=float) # bottom elevation of each geological layer
             thick_geo   = np.zeros((self.nlg, mesh.ncpl), dtype=float) # geo layer thickness
             idomain_geo = np.zeros((self.nlg, mesh.ncpl), dtype=float)      # idomain array for each lithology
-                       
+                   
             # ------BOTM_GEO ---------------
             for icpl in range(mesh.ncpl): 
                 #get strat column
@@ -170,29 +168,31 @@ class Geomodel:
                 start, stop =  start_stop_arr(strat_log)
                 start = np.unique(start)
                 stop = np.unique(stop)
-                if icpl == 2635:
-                    print(strat_log)
-                    print(present)
-                    print(start)
-                    print(stop)
+                #if icpl == 0:
+                #    print(strat_log)
+                #    print(present)
+                #    print(start)
+                #    print(stop)
                 for i, lith in enumerate(present):           
                     if lith < 0:
                         top_geo[icpl] = z1 - (stop[i]+1) * dz     
-                        if icpl == 2635:
-                            print('lith = ', lith)
-                            print(' top_geo = ', z1 - (stop[i]+1) * dz)
+                        #if icpl == 0:
+                        #    print('lith = ', lith)
+                        #    print(' top_geo = ', z1 - (stop[i]+1) * dz)
                     if lith >= 0:
                         idomain_geo[lith, icpl] = 1
                         botm_geo[lith, icpl] = z1 - (stop[i]+1) * dz
-                        if icpl == 2635:
-                            print('lith = ', lith)
-                            print(' botm_geo = ', z1 - (stop[i]+1) * dz)
+                        #if icpl == 0:
+                        #    print('lith = ', lith)
+                        #    print('stop[i] = ', stop[i])
+                        #    print(' botm_geo = ', z1 - (stop[i]+1) * dz)
                 for lay_geo in range(self.nlg):
                     if idomain_geo[lay_geo, icpl] == 0: # if pinched out geological layer...
                         if lay_geo == 0:
                             botm_geo[lay_geo, icpl] = top_geo[icpl]  
                         else:
                             botm_geo[lay_geo, icpl] = botm_geo[lay_geo-1, icpl]  
+                            
             # -------------------------------
             
             for lay_geo in range(self.nlg):
@@ -218,6 +218,7 @@ class Geomodel:
                     for lay_sub in range(self.nls):
                         lay = lay_geo * self.nls + lay_sub
                         if idomain_geo[lay_geo, icpl] == 0: # if pinched out geological layer...
+                            #print('pinchout! ', lay_geo, icpl)
                             idomain[lay, icpl] = -1          # model cell idomain = -1
 
             # Creates bottom of model layers
@@ -227,7 +228,6 @@ class Geomodel:
             for i in range(1, self.nls): # First geo layer. i represent sublay 0,1,2 top down within layer
                 lay = lay_geo * self.nls + i
                 botm[lay,:] = self.top_geo - (i+1) * (self.top_geo - botm_geo[0])/self.nls
-
             for lay_geo in range(1, self.nlg): # Work through subsequent geological layers
                 for i in range(self.nls): 
                     lay = lay_geo * self.nls + i
@@ -250,7 +250,7 @@ class Geomodel:
                 for j in range(self.nls):
                     a.append(i * self.nls + j)
                 self.model_layers.append(a)
-                    
+ 
         #----- CON - CREATE LITH, BOTM AND IDOMAIN ARRAYS (PILLAR METHOD, PICKS UP PINCHED OUT LAYERS) ------#    
         if self.vertgrid == 'con2':
 
@@ -317,26 +317,37 @@ class Geomodel:
             self.botm = botm
             self.idomain = idomain
             self.lith = lith
-            print('con 2, line 312', self.lith.shape)
             self.lith_disv = lith
-            print('316', self.lith_disv.shape)
             self.nlay = nlay
             
         if self.vertgrid == 'con' or self.vertgrid == 'con2' :
-            # Get gradients by reevaluationg vector field at each cell
-            xyz = []                         
-            for lay in range(self.nlay-1, -1, -1):
-                for icpl in range(mesh.ncpl):  
-                    x, y, z = mesh.xcyc[icpl][0], mesh.xcyc[icpl][1], self.botm[lay, icpl] 
-                    xyz.append([x,y,z])
-                    #xyz=np.array(xyz)
-            vf = structuralmodel.model.evaluate_model_gradient(xyz) # generates an array indicating gradient for every cell
-            
-            ang1, ang2 = [], []
-            for i in range(len(vf)):  
-                ang1.append(find_angle1(vf[i]))
-                ang2.append(find_angle2(vf[i]))
-            
+
+            if self.transect == False:
+                xyz = []                         
+                for lay in range(self.nlay-1, -1, -1):
+                    for icpl in range(mesh.ncpl):  
+                        x, y, z = mesh.xcyc[icpl][0], mesh.xcyc[icpl][1], self.botm[lay, icpl] 
+                        xyz.append([x,y,z])
+                vf = structuralmodel.model.evaluate_model_gradient(xyz) # generates an array indicating gradient for every cell
+                
+                ang1, ang2 = [], []
+                for i in range(len(vf)):  
+                    ang1.append(find_angle1(vf[i]))
+                    ang2.append(find_angle2(vf[i]))
+
+            else:
+                vf = np.gradient(self.botm, mesh.delx) 
+                #print('vf1 shape ', vf[1].shape)
+                #print('vf 1 ', vf[1])
+                vf = vf[1].flatten()
+                print('vf shape ', vf.shape)
+                ang2 = []
+                for i in range(len(vf)):  # angle 2 (DIP) rotates around y axis clockwise looking from +ve y.
+                    angle2 = np.degrees(math.atan(vf[i]))
+                    ang2.append(angle2)
+                
+                ang1 = np.zeros_like(ang2, dtype = float)  # Angle 1 always at 0 in transect
+
             self.ang1  = reshape_loop2mf(np.asarray(ang1))
             self.ang2  = reshape_loop2mf(np.asarray(ang2))
             
@@ -361,7 +372,6 @@ class Geomodel:
 ################## PROP ARRAYS TO BE SAVED IN DISU FORMAT ##################        
     def fill_cell_properties(self, mesh): # Uses lithology codes to populate arrays 
 
-        
         print('   Filling cell properties for ', self.scenario, ' ...')
         t0 = datetime.now()
         
