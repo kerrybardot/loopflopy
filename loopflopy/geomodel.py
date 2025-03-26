@@ -168,24 +168,24 @@ class Geomodel:
                 start, stop =  start_stop_arr(strat_log)
                 start = np.unique(start)
                 stop = np.unique(stop)
-                #if icpl == 0:
-                #    print(strat_log)
-                #    print(present)
-                #    print(start)
-                #    print(stop)
+                if icpl == 20:
+                    print('strat_log ', strat_log)
+                    print('present ', present)
+                    print('start ', start)
+                    print('stop ', stop)
                 for i, lith in enumerate(present):           
                     if lith < 0:
                         top_geo[icpl] = z1 - (stop[i]+1) * dz     
-                        #if icpl == 0:
-                        #    print('lith = ', lith)
-                        #    print(' top_geo = ', z1 - (stop[i]+1) * dz)
+                        if icpl == 20:
+                            print('lith = ', lith)
+                            print(' top_geo = ', z1 - (stop[i]+1) * dz)
                     if lith >= 0:
                         idomain_geo[lith, icpl] = 1
                         botm_geo[lith, icpl] = z1 - (stop[i]+1) * dz
-                        #if icpl == 0:
-                        #    print('lith = ', lith)
-                        #    print('stop[i] = ', stop[i])
-                        #    print(' botm_geo = ', z1 - (stop[i]+1) * dz)
+                        if icpl == 20:
+                            print('lith = ', lith)
+                            print('stop[i] = ', stop[i])
+                            print(' botm_geo = ', z1 - (stop[i]+1) * dz)
                 for lay_geo in range(self.nlg):
                     if idomain_geo[lay_geo, icpl] == 0: # if pinched out geological layer...
                         if lay_geo == 0:
