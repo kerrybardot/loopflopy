@@ -214,6 +214,55 @@ class Mesh:
             self.xcyc = []
             for cell in self.cell2d:
                 self.xcyc.append((cell[1],cell[2]))
+
+        if self.plangrid == 'transect':
+
+            x0, x1 = spatial.model_extent[0][0], spatial.model_extent[1][0]
+            y0, y1 = spatial.model_extent[0][1], spatial.model_extent[1][1]
+
+            transect_length = ((spatial.x1 - spatial.x0)**2 + (spatial.y1 - spatial.y0)**2)**0.5
+            self.delx = transect_length/self.ncol
+            self.dely = 1000.
+            delr = self.delx * np.ones(self.ncol, dtype=float)
+            delc = self.dely * np.ones(self.nrow, dtype=float)
+            top  = np.ones((self.nrow, self.ncol), dtype=float)
+            botm = np.zeros((1, self.nrow, self.ncol), dtype=float)
+            angrot = np.degrees(np.arctan((spatial.y1 - spatial.y0)/(spatial.x1 - spatial.x0)))
+            print('angrot ', angrot)   
+
+            sg = flopy.discretization.StructuredGrid(delr=delr, delc=delc, top=top, botm=botm, 
+                                                    xoff = spatial.x0, yoff = spatial.y0, angrot = angrot)
+                                                    
+            xyzcenters = sg.xyzcellcenters
+            xcenters = xyzcenters[0][0]
+            ycenters = xyzcenters[1][0]
+            iverts = sg.iverts
+            verts = sg.verts
+
+            cell2d = []
+            xcyc = [] # added 
+            for icpl in range(self.ncpl):
+                xc = xcenters[icpl]
+                yc = ycenters[icpl]
+                iv1, iv2, iv3, iv4 = iverts[icpl]
+                cell2d.append([icpl, xc, yc, 5, iv1, iv2, iv3, iv4, iv1])
+                xcyc.append((xc, yc))
+            
+            vertices = []
+            for v in range(len(verts)):
+                i,j = verts[v]
+                vertices.append([v, i, j]) # need to make 1 based
+
+            self.sg = sg    
+            self.cell2d = cell2d
+            self.xcyc = xcyc
+            self.vertices = vertices
+            self.ncpl = len(self.cell2d)
+            self.xyzcenters = xyzcenters
+            self.xcenters, self.ycenters = xcenters, ycenters
+            
+            self.vgrid = flopy.discretization.VertexGrid(vertices=self.vertices, cell2d=self.cell2d, ncpl = self.ncpl, nlay = 1)
+            self.gi = flopy.utils.GridIntersect(self.vgrid)
     
     def locate_special_cells(self, spatial):
         
@@ -268,6 +317,7 @@ class Mesh:
 
                     att_name = f"chd_{subgroup}_cells"
                     setattr(self, att_name, cells)
+                    print(att_name, cells)
                     
                     for cell in cells:
                         self.chd_cells.append(cell)
@@ -332,7 +382,7 @@ class Mesh:
         ax.plot(x, y, '-o', ms = 2, lw = 0.5, color='black')
             
         if 'geo' in features:
-            spatial.geobore_gdf.plot(ax=ax, markersize = 7, color = 'darkblue', zorder=2)
+            spatial.geobore_gdf.plot(ax=ax, markersize = 7, color = 'green', zorder=2)
             for x, y, label in zip(spatial.geobore_gdf.geometry.x, spatial.geobore_gdf.geometry.y, spatial.obsbore_gdf.ID):
                 ax.annotate(label, xy=(x, y), xytext=(2, 2), size = 8, textcoords="offset points")
 
@@ -414,7 +464,7 @@ class Mesh:
                     ax.plot(x, y, '-o', ms = 2, lw = 0.5, color='green') 
         # Colorbar
         cbar_ax = fig.add_subplot(spec[1])
-        cbar = fig.colorbar(p, cax=cbar_ax, ticks=np.unique(self.ibd)+0.5, shrink = 0.2)  # Center tick labels
+        cbar = fig.colorbar(p, cax=cbar_ax, ticks=np.unique(self.ibd)+0.5, shrink = 0.1)  # Center tick labels
         cbar.ax.set_yticklabels(self.cell_type) # Custom tick labels
 
         plt.savefig('../figures/special_cells.png')

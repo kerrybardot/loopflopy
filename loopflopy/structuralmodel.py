@@ -164,7 +164,7 @@ class StructuralModel:
         for item in self.strat['sequence'].tolist():
             if item not in self.sequence_names:
                 self.sequence_names.append(item)
-        print(self.sequence_names)
+        #print(self.sequence_names)
 
         x0 = kwargs.get('x0', self.x0)
         z0 = kwargs.get('z0', self.z0)
@@ -181,9 +181,9 @@ class StructuralModel:
 
         
         for i, n in enumerate(transect_y):
-            fig = plt.figure(figsize=(12, 5))
+            fig = plt.figure(figsize=(12, 3))
             ax = plt.subplot(len(transect_y), 1, i+1)
-            #ax.set_aspect('equal')
+            ax.set_aspect('equal')
             Y = np.zeros_like(X)
             Y[:,:] = n
 
@@ -195,22 +195,22 @@ class StructuralModel:
 
             val_above = 0
             # Evaluate scalar fields for each feature to plot contours
-            for k, feat in enumerate(self.sequence_names):
-
+            for k, feat in enumerate(self.sequence_names[1:]):
+                
                 values = self.strat[self.strat['sequence'] == feat].val.tolist()
                 values = sorted(values)
-                print(feat, values, val_above)
+                #print(feat, values, val_above)
                 V = self.model.evaluate_feature_value(feat, np.array([X.flatten(),Y.flatten(),Z.flatten()]).T).reshape(np.shape(Y))
                 for j in range(len(values)-1):
-                    contour_values = np.arange(values[j], values[j+1], 100)
+                    contour_values = np.arange(values[j], values[j+1], 20)
                     for val in contour_values:
-                        print(feat, val)
+                        #print(feat, val)
                         ax.contour(X, Z, V, levels = [val], colors = 'Black', linewidths=0.5, linestyles = 'dashed') 
                 
                 # plot contours fror top unit within feature
-                contour_values = np.arange(values[-1], 9999, 100)#val_above+20, 20)
+                contour_values = np.arange(values[-1], 9999, 20)#val_above+20, 20)
                 for val in contour_values:
-                    print(feat, val)
+                    #print(feat, val)
                     ax.contour(X, Z, V, levels = [val], colors = 'Black', linewidths=0.5, linestyles = 'dashed') 
                 val_above = values[0]
                 

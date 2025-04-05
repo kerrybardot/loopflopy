@@ -51,6 +51,11 @@ def find_angle2(nv): # nv = normal vector to surface
             costheta = v[2]/v_mag
             angle2 = 90-np.degrees(math.acos(costheta)) 
     return(angle2)
+
+def reshape_loop2mf(array, nlay, ncpl):
+    array = array.reshape((nlay, ncpl))
+    array = np.flip(array, 0)
+    return(array)
     
 class Geomodel:
     
@@ -67,18 +72,14 @@ class Geomodel:
         
 #---------- FUNCTION TO EVALUATE GEO MODEL AND POPULATE HYDRAULIC PARAMETERS ------#
 
-    def create_lith_dis_arrays(self, mesh, structuralmodel): # Takes the project parameters and model class.         
-        print('   Creating Geomodel (lithology and discretisation arrays) for ', self.scenario, ' ...')
-        t0 = datetime.now()
+    def evaluate_structuralmodel(self, mesh, structuralmodel): # Takes the project parameters and model class.         
+        #print('   Creating Geomodel (lithology and discretisation arrays) for ', self.scenario, ' ...')
         
         self.strat_names = structuralmodel.strat_names[1:]
         self.nlg = len(self.strat_names)  
         z0, z1 = self.z0, self.z1
         
-        def reshape_loop2mf(array):
-            array = array.reshape((self.nlay, mesh.ncpl))
-            array = np.flip(array, 0)
-            return(array)
+
 
 #---------- VOX - DIS ARRAY ------#
 
@@ -120,15 +121,18 @@ class Geomodel:
             for i in range(len(vf)):  
                 ang1.append(find_angle1(vf[i]))
                 ang2.append(find_angle2(vf[i]))
-            self.ang1  = reshape_loop2mf(np.asarray(ang1))
-            self.ang2  = reshape_loop2mf(np.asarray(ang2))
+            self.ang1  = reshape_loop2mf(np.asarray(ang1), nlay, mesh.ncpl)
+            self.ang2  = reshape_loop2mf(np.asarray(ang2), nlay, mesh.ncpl)
             
 #---------- CON AND CON2  Finding geological layers bottoms ------#
 
         if self.vertgrid == 'con' or self.vertgrid == 'con2' : # CREATING DIS AND NPF ARRAYS
             
+            print('   0. Creating xyz array...')
+            t0 = datetime.now()
             nlay = int((z1 - z0)/self.res)
             dz = (z1 - z0)/nlay # actual resolution
+            self.dz = dz
             zc = np.arange(z0 + dz / 2, z1, dz)  # Cell centres
             xyz = []  
             for k in range(nlay):
@@ -137,12 +141,27 @@ class Geomodel:
                     x, y = mesh.xcyc[i][0], mesh.xcyc[i][1]
                     xyz.append([x,y,z])
 
-            self.xyz = xyz        
+            t1 = datetime.now()
+            run_time = t1 - t0
+            print('Time taken Block 0 (creating xyz array) = ', run_time.total_seconds())
+
+            print('   1. Evaluating structural model...')
+            t0 = datetime.now()
+            self.xyz = xyz  
+            print('len(xyz) = ', len(xyz))      
             litho = structuralmodel.model.evaluate_model(np.array(xyz))  # generates an array indicating lithology for every cell
             litho = np.asarray(litho)
             litho = litho.reshape((nlay, mesh.ncpl)) # Reshape to lay, ncpl
             litho = np.flip(litho, 0)
             self.litho = litho
+
+            t1 = datetime.now()
+            run_time = t1 - t0
+            print('Time taken Block 1 (Evaluate model) = ', run_time.total_seconds())
+
+    def create_model_layers(self, mesh, structuralmodel):
+            
+        if self.vertgrid == 'con' or self.vertgrid == 'con2' : # CREATING DIS AND NPF ARRAYS    
 
             def start_stop_arr(initial_list): # Function to look down pillar and pick geo bottoms
                 a = np.asarray(initial_list)
@@ -153,22 +172,92 @@ class Geomodel:
                 stop = np.repeat(idx[1:]-1, l)
                 return(start, stop)
             
+            nlay = int((self.z1 - self.z0)/self.res)
+            dz = (self.z1 - self.z0)/nlay # actual resolution
+            
+            # ------------------------------------------
+            print('   2. Creating geo model layers...')
+            t0 = datetime.now()
+
             # Arrays for geo arrays
-            #top = P.z1 * np.ones((mesh.ncpl), dtype=float)
             top_geo     = 9999 * np.ones((mesh.ncpl), dtype=float) # empty array to fill in ground surface
             botm_geo    = np.zeros((self.nlg, mesh.ncpl), dtype=float) # bottom elevation of each geological layer
             thick_geo   = np.zeros((self.nlg, mesh.ncpl), dtype=float) # geo layer thickness
             idomain_geo = np.zeros((self.nlg, mesh.ncpl), dtype=float)      # idomain array for each lithology
-                   
-            # ------BOTM_GEO ---------------
-            for icpl in range(mesh.ncpl): 
+            
+            stop_array = np.zeros((self.nlg+1, mesh.ncpl), dtype=float)
+            print('stop_array shape', stop_array .shape )
+            V = self.litho
+            W = V[1:, :] - V[:-1, :] 
+            #W = V[1:, :] - V[:-1, :] 
+            if np.any(W < 0):
+                print(f'Geology repeats itself {np.sum(W < 0)} times at {np.where(W < 0)}')
+                W[W < 0] = 0 # this is to handle instances where geology goes in reverse order (back to a younger sequence)
+
+            
+            print('nlay = ', nlay)
+            print('ncpl = ', mesh.ncpl)
+            print('nlg number of geo layers = ', self.nlg)
+
+            for icpl in range(mesh.ncpl):
+                print('ICPL = ', icpl)
+                if icpl == 297:
+                    print('Pillar lithologies ', V[:,icpl])
+                    print('V - V ', V[1:, icpl] - V[:-1, icpl])
+
+                # IDOMAIN
+                present = np.unique(V[:,icpl])
+                for p in present:
+                    if p >= 0: # don't include above ground
+                        idomain_geo[p, icpl] = 1
+                
+                stop = np.array([nlay-1]) # Add the last layer to start with
+                print('line 225 stop ', stop)
+                for i in range(1,self.nlg): 
+                    
+                    #idx = np.where(V[1:, icpl] - V[:-1, icpl] == i)[0] # checking if different from row above
+                    idx = np.where(W[:,icpl] == i)[0] # checking if different from row above
+                    # e.g. if i =  3 and idx =  [146 199], then it skips 3 layers TWICE!
+                    if idx.size != 0: # If there returns an index
+                        #print('i = ', i, 'idx = ', idx)
+                        
+                        for id in idx:
+                            if icpl == 297: print('id = ', id, 'idx = ', idx, 'np.ones(i) = ', np.ones(i))
+                            idx_array = id * np.ones(i)
+                            stop = np.concatenate((stop, idx_array))
+                print('line 225 stop ', stop)
+                n = self.nlg+1 - len(stop)# number of pinched out layers at the bottom not yet added to stop array
+                #print('n = ', n)
+                #print('stop  ', stop)
+                m = (nlay-1) * np.ones(n) # this is just accounting for the bottom geo layers that dont exist in pillar
+                stop = np.concatenate((stop, m))
+
+                stop = np.sort(stop)
+                if icpl == 297: print('stop ', stop)     
+                stop_array[:,icpl] = stop
+
+
+            #print('stop_array.shape = ', stop_array.shape)
+            botm_geo = self.z1 - (stop_array + 1)* self.dz
+            botm_geo[:, 0]
+            top_geo = botm_geo[0,:]
+            botm_geo = botm_geo[1:,:]
+            #print('top_geo shape', top_geo.shape)
+            #print('botm_geo', botm_geo.shape)
+            t1 = datetime.now()
+            run_time = t1 - t0
+            print('Time taken Block 2 create geomodel layers ', run_time.total_seconds())
+
+            '''for icpl in range(mesh.ncpl): 
                 #get strat column
-                strat_log = litho[:,icpl]
+                V = litho[:,icpl] # stratigraphy id in pillar
+                W = np.where(V[:-1] != V[1:])[0] # index of strat changes
                 present = np.unique(strat_log)
                 start, stop =  start_stop_arr(strat_log)
                 start = np.unique(start)
                 stop = np.unique(stop)
                 if icpl == 20:
+                    self.strat_log = strat_log
                     print('strat_log ', strat_log)
                     print('present ', present)
                     print('start ', start)
@@ -191,10 +280,12 @@ class Geomodel:
                         if lay_geo == 0:
                             botm_geo[lay_geo, icpl] = top_geo[icpl]  
                         else:
-                            botm_geo[lay_geo, icpl] = botm_geo[lay_geo-1, icpl]  
+                            botm_geo[lay_geo, icpl] = botm_geo[lay_geo-1, icpl]  '''
                             
             # -------------------------------
-            
+            print('   3. Evaluating geo layer thicknesses...')
+            t0 = datetime.now()
+
             for lay_geo in range(self.nlg):
                     if lay_geo == 0:
                         thick_geo[lay_geo, :] = top_geo - botm_geo[lay_geo,:]
@@ -205,10 +296,17 @@ class Geomodel:
             self.botm_geo = botm_geo  
             self.thick_geo = thick_geo    
             self.idomain_geo = idomain_geo 
+            t1 = datetime.now()
+            run_time = t1 - t0
+            print('Time taken Block 3 tiny bit', run_time.total_seconds())
                     
             
 #----- CON - CREATE LITH, BOTM AND IDOMAIN ARRAYS (PILLAR METHOD, PICKS UP PINCHED OUT LAYERS) ------#    
         if self.vertgrid == 'con':
+
+            print('   4. Creating flow model layers...')
+            t0 = datetime.now()
+
             self.nlay   = self.nlg * self.nls # number of model layers = geo layers * sublayers 
             botm        = np.zeros((self.nlay, mesh.ncpl), dtype=float) # bottom elevation of each model layer
             idomain     = np.ones((self.nlay, mesh.ncpl), dtype=int)    # idomain for each model layer
@@ -250,6 +348,10 @@ class Geomodel:
                 for j in range(self.nls):
                     a.append(i * self.nls + j)
                 self.model_layers.append(a)
+
+            t1 = datetime.now()
+            run_time = t1 - t0
+            print('Time taken Block 4 create flow model layers = ', run_time.total_seconds())
  
         #----- CON - CREATE LITH, BOTM AND IDOMAIN ARRAYS (PILLAR METHOD, PICKS UP PINCHED OUT LAYERS) ------#    
         if self.vertgrid == 'con2':
@@ -322,6 +424,9 @@ class Geomodel:
             
         if self.vertgrid == 'con' or self.vertgrid == 'con2' :
 
+            print('   5. Calculating gradients...')
+            t0 = datetime.now()
+
             if self.transect == False:
                 xyz = []                         
                 for lay in range(self.nlay-1, -1, -1):
@@ -348,8 +453,8 @@ class Geomodel:
                 
                 ang1 = np.zeros_like(ang2, dtype = float)  # Angle 1 always at 0 in transect
 
-            self.ang1  = reshape_loop2mf(np.asarray(ang1))
-            self.ang2  = reshape_loop2mf(np.asarray(ang2))
+            self.ang1  = reshape_loop2mf(np.asarray(ang1), self.botm.shape[0], self.botm.shape[1])
+            self.ang2  = reshape_loop2mf(np.asarray(ang2), self.botm.shape[0], self.botm.shape[1])
             
         self.nnodes_div = len(self.botm.flatten())   
 
@@ -367,12 +472,12 @@ class Geomodel:
 
         t1 = datetime.now()
         run_time = t1 - t0
-        print('Time taken = ', run_time.total_seconds())
+        print('Time taken Block 5 gradients= ', run_time.total_seconds())
 
 ################## PROP ARRAYS TO BE SAVED IN DISU FORMAT ##################        
     def fill_cell_properties(self, mesh): # Uses lithology codes to populate arrays 
 
-        print('   Filling cell properties for ', self.scenario, ' ...')
+        print('   6. Filling cell properties...')
         t0 = datetime.now()
         
         # First create an array for cellids in layered version  (before we pop cells that are absent)
@@ -433,8 +538,9 @@ class Geomodel:
         self.logk22    = logfunc(self.k22)
         self.logk33    = logfunc(self.k33)
         
-        run_time = datetime.now() - t0
-        print('Time taken = ', run_time.total_seconds())
+        t1 = datetime.now()
+        run_time = t1 - t0
+        print('Time taken Block 6 Fill cell properties = ', run_time.total_seconds())
 
     def geomodel_plan_lith(self, spatial, mesh, structuralmodel, **kwargs):
         x0 = kwargs.get('x0', spatial.x0)

@@ -355,6 +355,12 @@ class Flowmodel:
                                             geographic_coords=True)
         xsect.plot_grid(lw = 0.5, color = 'black') 
         csa = xsect.plot_array(a = getattr(self, array), cmap = 'Spectral', alpha=0.8, vmin = vmin, vmax = vmax)
+        #if vectors:
+        #    #import flopy
+        #    qx, qy, qz = flopy.utils.postprocessing.get_specific_discharge(self.spd, self.gwf)
+        #  
+        #    xsect.plot_vector(qx, qy, qz, scale=1., normalize=True, color="black")
+        
         ax.set_xlabel('x (m)', size = 10)
         ax.set_ylabel('z (m)', size = 10)
         ax.set_ylim([z0,z1])

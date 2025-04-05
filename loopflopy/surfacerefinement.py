@@ -30,7 +30,9 @@ class SurfaceRefinement:
         from loopflopy.geomodel import Geomodel
         geomodel = Geomodel(scenario, vertgrid, z0, z1, nls = 1, res = 2)#, max_thick = 100. * np.ones((7)))
 
-        geomodel.create_lith_dis_arrays(mesh, structuralmodel)
+        geomodel.evaluate_structuralmodel(mesh, structuralmodel)
+        geomodel.create_model_layers(mesh, structuralmodel)
+        #geomodel.create_lith_dis_arrays(mesh, structuralmodel)
         geomodel.vgrid = flopy.discretization.VertexGrid(vertices=mesh.vertices, cell2d=mesh.cell2d, ncpl = mesh.ncpl, top = geomodel.top_geo, botm = geomodel.botm)
         geomodel.get_surface_lith()
 
@@ -63,10 +65,32 @@ class SurfaceRefinement:
         gdf = gpd.GeoDataFrame(crs = spatial.epsg, geometry=nodes) # Create a GeoDataFrame from the nodes
         gdf.to_file("../modelfiles/interface_nodes.shp") # Save the nodes as a shapefile
         spatial.interface_nodes = list(zip(gdf.geometry.x, gdf.geometry.y)) # Save the nodes as a list of tuples
-
-        return gdf
     
     def plot_surface_refinement(self, spatial, structuralmodel, y0, y1):
         self.geomodel.geomodel_plan_lith(spatial, self.mesh, structuralmodel, y0 = y0, y1 = y1)
         self.geomodel.geomodel_transect_lith(structuralmodel, spatial, y0 = y0, y1 = y1)#, z0 = -900, z1 = -2000) 
 
+    def plot_contours(self, geomodel, mesh, X, Y, Z, levels=10):
+        print(mesh.xcenters.shape)
+        print(mesh.ycenters.shape)
+        print(geomodel.surf_lith.shape)#reshape((mesh.nrow, mesh.ncol))
+        plt.figure(figsize=(8, 6))
+        contour = plt.contour(X, Y, Z, levels=levels, cmap='viridis')
+        plt.colorbar(contour)
+        plt.title('Contour Lines')
+        plt.xlabel('X')
+        plt.ylabel('Y')
+        plt.show()
+        self.contour = contour
+
+    def extract_contour_lines(self):
+        contour_lines = []
+        for collection in contour.collections:
+            for path in collection.get_paths():
+                v = path.vertices
+                contour_lines.append(LineString(v))
+        self.contour_lines = contour_lines
+
+    def save_contour_lines_to_shapefile(self, filename):
+        gdf = gpd.GeoDataFrame(geometry=self.contour_lines)
+        gdf.to_file(filename)
