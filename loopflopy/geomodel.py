@@ -225,7 +225,7 @@ class Geomodel:
                             if icpl == 297: print('id = ', id, 'idx = ', idx, 'np.ones(i) = ', np.ones(i))
                             idx_array = id * np.ones(i)
                             stop = np.concatenate((stop, idx_array))
-                print('line 225 stop ', stop)
+    
                 n = self.nlg+1 - len(stop)# number of pinched out layers at the bottom not yet added to stop array
                 #print('n = ', n)
                 #print('stop  ', stop)

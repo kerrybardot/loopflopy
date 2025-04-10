@@ -52,14 +52,15 @@ class StructuralModel:
         a = np.array([X.flatten(),Y.flatten(),Z.flatten()]).T
         V = self.model.evaluate_model(a).reshape(np.shape(X))
 
-        plt.figure(figsize=(8, 5))
+        plt.figure(figsize=(10, 8))
         plt.subplot(111)
 
-        csa = plt.imshow(np.ma.masked_where(V<0,V), origin = "lower", extent = [y0,y1,z0,z1], aspect = 'auto', cmap = self.cmap, norm = self.norm)
+        csa = plt.imshow(np.ma.masked_where(V<0,V), origin = "lower", extent = [y0,y1,z0,z1], 
+                         cmap = self.cmap, norm = self.norm, aspect = 0.2, )
         
         cbar = plt.colorbar(csa,
                             boundaries = boundaries,
-                            shrink = 1.0
+                            shrink = 0.2
                             )
         cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 8, verticalalignment = 'center')    
         #plt.xticks(ticks = [], labels = [])
