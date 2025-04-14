@@ -1,0 +1,3 @@
+Download mf6.exe and save in this folder
+
+https://github.com/MODFLOW-ORG/modflow6/releases 

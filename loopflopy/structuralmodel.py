@@ -159,7 +159,7 @@ class StructuralModel:
             plt.savefig('../figures/structural_ytransects.png')
             plt.show()
         
-    def plot_ytransects2(self, transect_y, nx, nz, **kwargs):
+    def plot_ytransects2(self, transect_y, nx, nz, dz, **kwargs):
 
         self.sequence_names = []
         for item in self.strat['sequence'].tolist():
@@ -203,13 +203,13 @@ class StructuralModel:
                 #print(feat, values, val_above)
                 V = self.model.evaluate_feature_value(feat, np.array([X.flatten(),Y.flatten(),Z.flatten()]).T).reshape(np.shape(Y))
                 for j in range(len(values)-1):
-                    contour_values = np.arange(values[j], values[j+1], 20)
+                    contour_values = np.arange(values[j], values[j+1], dz)
                     for val in contour_values:
                         #print(feat, val)
                         ax.contour(X, Z, V, levels = [val], colors = 'Black', linewidths=0.5, linestyles = 'dashed') 
                 
                 # plot contours fror top unit within feature
-                contour_values = np.arange(values[-1], 9999, 20)#val_above+20, 20)
+                contour_values = np.arange(values[-1], 9999, dz)#val_above+20, 20)
                 for val in contour_values:
                     #print(feat, val)
                     ax.contour(X, Z, V, levels = [val], colors = 'Black', linewidths=0.5, linestyles = 'dashed') 
@@ -228,7 +228,7 @@ class StructuralModel:
             cbar = plt.colorbar(csa,
                                 ax=ax,
                                 boundaries=boundaries,
-                                shrink = 0.5
+                                shrink = 1.0
                                 )
             cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 8, verticalalignment = 'center')    
             ax.set_title("y = " + str(transect_y[i]), size = 8)
