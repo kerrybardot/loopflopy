@@ -30,12 +30,13 @@ class StructuralModel:
         self.norm = norm
         self.cmap = matplotlib.colors.LinearSegmentedColormap.from_list("", tuples)'''
 
-    def plot_xytransect(self, start, end, z0, z1, nh, nz, **kwargs):
+    def plot_xytransect(self, title, start, end, z0, z1, nh, nz, **kwargs):
     
         x0 = start[0]
         y0 = start[1]
         x1 = end[0]
         y1 = end[1]
+
 
         x = np.linspace(x0, x1, nh)
         y = np.linspace(y0, y1, nh)        
@@ -52,11 +53,10 @@ class StructuralModel:
         a = np.array([X.flatten(),Y.flatten(),Z.flatten()]).T
         V = self.model.evaluate_model(a).reshape(np.shape(X))
 
-        plt.figure(figsize=(10, 8))
-        plt.subplot(111)
+        fig, ax = plt.subplots(figsize=(10,4))
 
-        csa = plt.imshow(np.ma.masked_where(V<0,V), origin = "lower", extent = [y0,y1,z0,z1], 
-                         cmap = self.cmap, norm = self.norm, aspect = 0.2, )
+        csa = plt.imshow(np.ma.masked_where(V<0,V), origin = "lower", extent = [x0,x1,z0,z1], aspect = 'auto',
+                         cmap = self.cmap, norm = self.norm, )
         
         cbar = plt.colorbar(csa,
                             boundaries = boundaries,
@@ -65,10 +65,12 @@ class StructuralModel:
         cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 8, verticalalignment = 'center')    
         #plt.xticks(ticks = [], labels = [])
         plt.xlabel('Easting (m)')
-        plt.title("Transect", size = 8)
         plt.ylabel('Elev. (mAHD)')
-        plt.savefig('../figures/structural_xytransect.png')
+        plt.title(title, size = 8)
+        
         plt.show()
+        plt.savefig('../figures/structural_xytransect.png')
+        
     
     def plot_xtransects(self, transect_x, ny, nz, **kwargs):
         
@@ -159,7 +161,7 @@ class StructuralModel:
             plt.savefig('../figures/structural_ytransects.png')
             plt.show()
         
-    def plot_ytransects2(self, transect_y, nx, nz, dz, **kwargs):
+    def plot_ytransects2(self, transect_y, nx, nz, dz, faults = False, **kwargs):
 
         self.sequence_names = []
         for item in self.strat['sequence'].tolist():
@@ -215,12 +217,11 @@ class StructuralModel:
                     ax.contour(X, Z, V, levels = [val], colors = 'Black', linewidths=0.5, linestyles = 'dashed') 
                 val_above = values[0]
                 
-                
-
-            # Evaluate faults to plot
-            for fault in self.faults:
-                F = self.model.evaluate_feature_value(fault, np.array([X.flatten(),Y.flatten(),Z.flatten()]).T).reshape(np.shape(Y))
-                ax.contour(X, Z, F, levels = [0], colors = 'Black', linewidths=2., linestyles = 'dashed') 
+            if faults:
+                # Evaluate faults to plot
+                for fault in self.faults:
+                    F = self.model.evaluate_feature_value(fault, np.array([X.flatten(),Y.flatten(),Z.flatten()]).T).reshape(np.shape(Y))
+                    ax.contour(X, Z, F, levels = [0], colors = 'Black', linewidths=2., linestyles = 'dashed') 
             if i < (len(transect_y)-1):
                 ax.set_xticks(ticks = [], labels = [])
             else:

@@ -105,6 +105,12 @@ def disvcell_to_disucell(geomodel, disvcell): # zerobased
     disucell = geomodel.cellid_disu.flatten()[disvcell]
     return disucell
 
+def disvcell_to_layicpl(geomodel, disvcell): # zerobased
+    nlay, ncpl = geomodel.cellid_disv.shape
+    lay  = math.floor(disvcell/ncpl) # Zero based
+    icpl = math.floor(disvcell - lay * ncpl) # Zero based
+    return (lay,icpl)
+
 def disucell_to_layicpl(geomodel, disucell): # zerobased
     nlay, ncpl = geomodel.cellid_disv.shape
     disvcell = np.where(geomodel.cellid_disu.flatten()==disucell)[0][0]  

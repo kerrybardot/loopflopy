@@ -66,6 +66,7 @@ class Geomodel:
         self.z0 = z0
         self.z1 = z1
         self.transect = transect
+        
 
         for key, value in kwargs.items():
             setattr(self, key, value)    
@@ -78,7 +79,7 @@ class Geomodel:
         self.strat_names = structuralmodel.strat_names[1:]
         self.nlg = len(self.strat_names)  
         z0, z1 = self.z0, self.z1
-        
+        self.ncpl = mesh.ncpl
 
 
 #---------- VOX - DIS ARRAY ------#
@@ -421,8 +422,27 @@ class Geomodel:
             self.lith = lith
             self.lith_disv = lith
             self.nlay = nlay
+
+
+
+        ###############
             
         if self.vertgrid == 'con' or self.vertgrid == 'con2' :
+
+            # Sort out cell ids
+            # First create an array for cellids in layered version  (before we pop cells that are absent)
+            self.cellid_disv = np.empty_like(self.lith_disv, dtype = int)
+            self.cellid_disu = -1 * np.ones_like(self.lith_disv, dtype = int)
+            i = 0
+            for lay in range(self.nlay):
+                for icpl in range(mesh.ncpl):
+                    self.cellid_disv[lay, icpl] = lay * mesh.ncpl + icpl
+                    if self.idomain[lay, icpl] != -1:
+                        self.cellid_disu[lay, icpl] = i
+                        i += 1
+            self.ncell_disv = self.cellid_disv.size
+            self.ncell_disu = np.count_nonzero(self.cellid_disu != -1)
+
 
             print('   5. Calculating gradients...')
             t0 = datetime.now()
@@ -477,10 +497,9 @@ class Geomodel:
 ################## PROP ARRAYS TO BE SAVED IN DISU FORMAT ##################        
     def fill_cell_properties(self, mesh): # Uses lithology codes to populate arrays 
 
-        print('   6. Filling cell properties...')
-        t0 = datetime.now()
         
-        # First create an array for cellids in layered version  (before we pop cells that are absent)
+        
+        '''# First create an array for cellids in layered version  (before we pop cells that are absent)
         self.cellid_disv = np.empty_like(self.lith_disv, dtype = int)
         self.cellid_disu = -1 * np.ones_like(self.lith_disv, dtype = int)
         i = 0
@@ -491,9 +510,12 @@ class Geomodel:
                     self.cellid_disu[lay, icpl] = i
                     i += 1
         self.ncell_disv = self.cellid_disv.size
-        self.ncell_disu = np.count_nonzero(self.cellid_disu != -1)
+        self.ncell_disu = np.count_nonzero(self.cellid_disu != -1)'''
         
-#---------- PROP ARRAYS (VOX and CON) -----   
+#---------- PROP ARRAYS (VOX and CON) ----- 
+# 
+        print('   6. Filling cell properties...')
+        t0 = datetime.now()  
         self.k11    = np.empty_like(self.lith_disv, dtype = float)
         self.k22    = np.empty_like(self.lith_disv, dtype = float)
         self.k33    = np.empty_like(self.lith_disv, dtype = float)

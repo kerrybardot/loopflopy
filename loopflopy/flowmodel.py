@@ -20,14 +20,16 @@ class Flowmodel:
         self.lith = geomodel.lith
         self.logk11 = geomodel.logk11
         self.logk33 = geomodel.logk33
-
-        self.xt3d = True
-        self.staggered = True
-        self.newtonoptions = ['UNDER_RELAXATION']
         
-    def write_flowmodel(self, transient = False, **kwargs):
+    def write_flowmodel(self, transient = False, xt3d = True, **kwargs):
         
         print('   Writing simulation and gwf for ', self.scenario, ' ...')
+        print('xt3d = ', xt3d)
+
+        self.xt3d = xt3d
+        self.staggered = True
+        self.newtonoptions = ['UNDER_RELAXATION']
+
         t0 = datetime.now()
        
         for key, value in kwargs.items():

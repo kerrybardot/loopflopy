@@ -227,11 +227,11 @@ class Mesh:
             delc = self.dely * np.ones(self.nrow, dtype=float)
             top  = np.ones((self.nrow, self.ncol), dtype=float)
             botm = np.zeros((1, self.nrow, self.ncol), dtype=float)
-            angrot = np.degrees(np.arctan((spatial.y1 - spatial.y0)/(spatial.x1 - spatial.x0)))
+            angrot = np.degrees(np.arctan((y1 - y0)/(x1 - x0)))
             print('angrot ', angrot)   
 
             sg = flopy.discretization.StructuredGrid(delr=delr, delc=delc, top=top, botm=botm, 
-                                                    xoff = spatial.x0, yoff = spatial.y0, angrot = angrot)
+                                                    xoff = x0, yoff = y0, angrot = angrot)
                                                     
             xyzcenters = sg.xyzcellcenters
             xcenters = xyzcenters[0][0]
