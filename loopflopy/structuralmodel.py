@@ -15,21 +15,6 @@ class StructuralModel:
         self.x0, self.y0, self.z0 = bbox[0][0], bbox[0][1], bbox[0][2]
         self.x1, self.y1, self.z1 = bbox[1][0], bbox[1][1], bbox[1][2]
         
-
-    '''def make_cmap(self): 
-        stratcolors = []
-        for i in range(1,len(self.strat)):
-            R = self.strat.R.loc[i].item() / 255
-            G = self.strat.G.loc[i].item() / 255
-            B = self.strat.B.loc[i].item() / 255
-            stratcolors.append([round(R, 2), round(G, 2), round(B, 2)])
-        nlg = len(self.strat_names[1:]) # number of layers geologic (Don't include above ground)
-        cvals = np.arange(1,nlg) 
-        norm=plt.Normalize(min(cvals),max(cvals))
-        tuples = list(zip(map(norm,cvals), stratcolors))
-        self.norm = norm
-        self.cmap = matplotlib.colors.LinearSegmentedColormap.from_list("", tuples)'''
-
     def plot_xytransect(self, title, start, end, z0, z1, nh, nz, **kwargs):
     
         x0 = start[0]
