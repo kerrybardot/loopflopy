@@ -135,6 +135,13 @@ def disucell_to_xyz(geomodel, disucell): # zerobased
     z = geomodel.vgrid.zcellcenters[lay, icpl]
     return(x,y,z)
 
+def xyz_to_disvcell(geomodel, x,y,z): # zerobased
+    nlay, ncpl = geomodel.cellid_disv.shape
+    point = Point(x,y,z)
+    lay, icpl = geomodel.vgrid.intersect(x,y,z)
+    disvcell = icpl + lay*ncpl
+    return disvcell
+
 def xyz_to_disucell(geomodel, x,y,z): # zerobased
     nlay, ncpl = geomodel.cellid_disv.shape
     point = Point(x,y,z)

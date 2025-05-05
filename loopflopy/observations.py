@@ -6,32 +6,30 @@ from shapely.geometry import Point
 import loopflopy.utils as utils
 
 class Observations:
-    def __init__(self, df_boredetails, **kwargs):
+    def __init__(self, gdf, **kwargs):
 
         self.observations_label = "ObservationsBaseClass"
-        self.df_boredetails = df_boredetails
-
+        self.gdf = gdf
+        
         for key, value in kwargs.items():
             setattr(self, key, value)       
     
-    def process_obs(self, spatial, geomodel, mesh):
+    def make_recarray(self):
        
-        zobs = spatial.obsbore_gdf.zobs.tolist()
-        xobs, yobs = spatial.obsbore_gdf.Easting.tolist(), spatial.obsbore_gdf.Northing.tolist(), 
+        ### CREATE REC ARRAY FOR MODFLOW
+
+        xobs = self.gdf.x.tolist()
+        yobs = self.gdf.y.tolist()
+        zobs = self.gdf.z.tolist()
         obslist = list(zip(xobs, yobs, zobs))
-    
+
         # Cretae input arrays
+        obscellid_list = self.gdf.id.tolist()
+        obscell_list = self.gdf.cell_disu.tolist()
+
         obs_rec = []
-        for i, cell in enumerate(mesh.obs_cells):
-            x,y,z = obslist[i][0], obslist[i][1], obslist[i][2]
-            try:
-                cell_disu = utils.xyz_to_disucell(geomodel, x,y,z)
-                if cell_disu != -1:
-                    obs_rec.append([spatial.idobsbores[i], 'head', (cell_disu+1)]) 
-                else:
-                    print('pinched out!') # that shoudl not happen!  
-            except:
-                print('No obs at (%f, %f, %f)' %(x,y,z))
+        for i, cell_disu in enumerate(obscell_list):
+            obs_rec.append([obscellid_list[i], 'head', (cell_disu+1)]) # 1 based for obs package
 
         self.obs_rec = obs_rec
         
