@@ -162,6 +162,8 @@ class Geomodel:
 
     def create_model_layers(self, mesh, structuralmodel):
             
+        self.units = np.array(structuralmodel.strat_names[1:])  
+
         if self.vertgrid == 'con' or self.vertgrid == 'con2' : # CREATING DIS AND NPF ARRAYS    
 
             def start_stop_arr(initial_list): # Function to look down pillar and pick geo bottoms
@@ -201,10 +203,10 @@ class Geomodel:
             print('nlg number of geo layers = ', self.nlg)
 
             for icpl in range(mesh.ncpl):
-                print('ICPL = ', icpl)
-                if icpl == 297:
-                    print('Pillar lithologies ', V[:,icpl])
-                    print('V - V ', V[1:, icpl] - V[:-1, icpl])
+                #print('ICPL = ', icpl)
+                #if icpl == 297:
+                #    print('Pillar lithologies ', V[:,icpl])
+                #    print('V - V ', V[1:, icpl] - V[:-1, icpl])
 
                 # IDOMAIN
                 present = np.unique(V[:,icpl])
@@ -213,7 +215,7 @@ class Geomodel:
                         idomain_geo[p, icpl] = 1
                 
                 stop = np.array([nlay-1]) # Add the last layer to start with
-                print('line 225 stop ', stop)
+                #print('line 225 stop ', stop)
                 for i in range(1,self.nlg): 
                     
                     #idx = np.where(V[1:, icpl] - V[:-1, icpl] == i)[0] # checking if different from row above
@@ -223,7 +225,7 @@ class Geomodel:
                         #print('i = ', i, 'idx = ', idx)
                         
                         for id in idx:
-                            if icpl == 297: print('id = ', id, 'idx = ', idx, 'np.ones(i) = ', np.ones(i))
+                            #if icpl == 297: print('id = ', id, 'idx = ', idx, 'np.ones(i) = ', np.ones(i))
                             idx_array = id * np.ones(i)
                             stop = np.concatenate((stop, idx_array))
     
@@ -234,7 +236,7 @@ class Geomodel:
                 stop = np.concatenate((stop, m))
 
                 stop = np.sort(stop)
-                if icpl == 297: print('stop ', stop)     
+                #if icpl == 297: print('stop ', stop)     
                 stop_array[:,icpl] = stop
 
 
@@ -548,6 +550,54 @@ class Geomodel:
         self.ss     = self.ss[self.cellid_disu != -1].flatten()
         self.sy     = self.sy[self.cellid_disu != -1].flatten()
         self.iconvert     = self.iconvert[self.cellid_disu != -1].flatten()
+        print('ang1 shape ', self.ang1.shape)
+        print(self.cellid_disu[self.cellid_disu != -1].size)
+        #a1, a2 = self.ang1.reshape((self.nlay, self.ncpl)), self.ang2.reshape((self.nlay, self.ncpl))
+        self.angle1 = self.ang1[self.cellid_disu != -1].flatten()
+        self.angle2 = self.ang2[self.cellid_disu != -1].flatten()
+        self.angle3 = np.zeros_like(self.angle1, dtype = float)  # Angle 3 always at 0
+        
+        print('angle1 shape ', self.angle1.shape)
+        self.logk11    = logfunc(self.k11)
+        self.logk22    = logfunc(self.k22)
+        self.logk33    = logfunc(self.k33)
+        
+        t1 = datetime.now()
+        run_time = t1 - t0
+        print('Time taken Block 6 Fill cell properties = ', run_time.total_seconds())
+
+    def fill_cell_properties_heterogeneous(self, properties): # Uses lithology codes to populate arrays 
+       
+#---------- PROP ARRAYS (VOX and CON) ----- 
+# 
+        print('   6. Filling cell properties...')
+        t0 = datetime.now()  
+
+        # Lith
+        self.lith   = self.lith_disv[self.cellid_disu != -1].flatten()
+
+        # iconvert
+        self.iconvert = np.empty_like(self.lith_disv, dtype = float)
+        for n in range(self.nlg): self.iconvert[self.lith_disv==n]  = self.iconvert_perlay[n]
+        self.iconvert     = self.iconvert[self.cellid_disu != -1].flatten()
+                   
+        # Force all K tensor angles in fault zone to 0 (Loop can't calculate angles in faulted area properly yet!)
+        '''if 'spatial.fault_poly' in globals(): #if hassattr(P,"fault_poly"):
+            for icpl in range(mesh.ncpl):
+                point = Point(mesh.xcyc[icpl])
+                if spatial.fault_poly.contains(point):
+                    for lay in range(self.nlay):
+                        self.ang1[lay,icpl] = 0  
+                        self.ang2[lay,icpl] = 0 '''  
+        ######################################
+        
+        # Heterogeneous properties
+        self.k11    = properties.kh_disu
+        self.k22    = properties.kh_disu
+        self.k33    = properties.kv_disu
+        self.ss     = properties.ss_disu
+        self.sy     = properties.sy_disu
+        
         print('ang1 shape ', self.ang1.shape)
         print(self.cellid_disu[self.cellid_disu != -1].size)
         #a1, a2 = self.ang1.reshape((self.nlay, self.ncpl)), self.ang2.reshape((self.nlay, self.ncpl))

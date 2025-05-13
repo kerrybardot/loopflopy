@@ -88,6 +88,11 @@ class Mesh:
                 self.welnodes.append(vertices1)
                 #self.welnodes2.append(vertices2)
 
+            spatial.bore_refinement_nodes = []
+            for bore in range(spatial.npump): # x 2 because inner and outer ring of vertices
+                for node in range(len(self.welnodes[bore])):
+                    spatial.bore_refinement_nodes.append(self.welnodes[bore][node])
+
     def prepare_nodes_and_polygons(self, spatial, node_list, polygon_list):
         self.nodes = []
         for n in node_list: # e.g. n could be "faults_nodes"
@@ -281,6 +286,7 @@ class Mesh:
             
             subgroups = self.special_cells[group]
             print('Group = ', group, subgroups)
+            print('flag =', flag)
 
             #for attribute, value in flowmodel.data.__dict__.items(): print(attribute)
             #for key, value in d.items():
@@ -420,6 +426,7 @@ class Mesh:
         pmv = flopy.plot.PlotMapView(ax = ax, modelgrid=self.vgrid)
         
         unique_ibd = np.unique(self.ibd)
+        print(unique_ibd)
         bounds = np.append(unique_ibd, unique_ibd[-1]+1)
         cmap = plt.cm.tab20
         #cmap = plt.cm.get_cmap('tab20', len(unique_ibd))  # 'tab20' provides 20 distinct colors
@@ -458,10 +465,12 @@ class Mesh:
                 for cell in self.ghb_cells:
                     ax.plot(self.cell2d[cell][1], self.cell2d[cell][2], "o", color = 'red', ms = 1)
 
-            if group == 'zone':
-                for subgroup in self.special_cells['zone']: # subgroup must be a poly
-                    x, y = spatial.subgroup.exterior.xy
-                    ax.plot(x, y, '-o', ms = 2, lw = 0.5, color='green') 
+            #if group == 'zone':
+            #    for subgroup in self.special_cells['zone']: # subgroup must be a poly
+            #        x, y = spatial.subgroup.exterior.xy
+            #        ax.plot(x, y, '-o', ms = 2, lw = 0.5, color='green') 
+        
+        print(np.unique(self.ibd))
         # Colorbar
         cbar_ax = fig.add_subplot(spec[1])
         cbar = fig.colorbar(p, cax=cbar_ax, ticks=np.unique(self.ibd)+0.5, shrink = 0.1)  # Center tick labels

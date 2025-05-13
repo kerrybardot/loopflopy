@@ -4,15 +4,18 @@ import flopy
 import rasterio
 import pickle
 import matplotlib.pyplot as plt
+import numpy as np
 
 class DEM:
     
     def __init__(self, geotiff_fname):   
         self.geotiff_fname = geotiff_fname
     
-    def resample_topo(self, project, mesh):
+    def resample_topo(self, project, mesh, spatial):
         fine_topo = flopy.utils.Raster.load(self.geotiff_fname)
-        #topo_cropped = fine_topo.crop(model_boundary_poly)
+        topo_cropped = fine_topo.crop(spatial.model_boundary_poly)
+        print(mesh.vgrid.crs)
+        print(fine_topo.crs)
         topo = fine_topo.resample_to_grid(mesh.vgrid, band=fine_topo.bands[0], method="linear", extrapolate_edges=True,)
         fname = project.workspace + 'topo.pkl'
         pickle.dump(topo, open(os.path.join(fname),'wb'))

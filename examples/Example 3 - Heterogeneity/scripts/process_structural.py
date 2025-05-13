@@ -102,7 +102,10 @@ def prepare_geodata(structuralmodel, spatial, extent = None, Fault = True):
                     val       = strat.val[count]                   # designated isovalue
                     unit      = strat.unit[count]                  # unit 
                     feature   = strat.sequence[count]              # sequence
-                    gx, gy, gz = 0,0,1                             # normal vector to surface (flat) 
+                    if unit == 'Ground':
+                        gx, gy, gz = 0,0,1                             # normal vector to surface (flat) 
+                    else:
+                        gx, gy, gz = np.nan, np.nan, np.nan 
                     formatted_data.append([boreid, easting, northing, Z, val, unit, feature, gx, gy, gz, data_type])      
                 count+=1
                 
