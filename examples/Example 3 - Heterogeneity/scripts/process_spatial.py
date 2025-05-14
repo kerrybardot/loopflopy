@@ -20,9 +20,60 @@ def remove_duplicate_points(polygon):
 def make_shp(spatial, xcoords, ycoords):
     shp = Polygon(list(zip(xcoords, ycoords)))
     shp_gdf = gpd.GeoDataFrame(geometry=[bbox], crs = spatial.epsg)
-    shp_gdf.to_file('../data/data_shp/new_shp_file.shp')
+    shp_gdf.to_file('../data/shp/new_shp_file.shp')
+
+def make_bbox_shp(spatial, x0, x1, y0, y1):
+    xcoords = [x0, x1, x1, x0, x0]
+    ycoords = [y0, y0, y1, y1, y0]
+    bbox = Polygon(list(zip(xcoords, ycoords)))
+    bbox_gdf = gpd.GeoDataFrame(geometry=[bbox], crs = spatial.epsg)
+    bbox_gdf.to_file('../data/shp/bbox.shp')
+    spatial.bbox_gdf = bbox_gdf
 
 def model_boundary(spatial, boundary_buff, simplify_tolerance, node_spacing):
+    
+    # Crop bbox with coastline on West coast
+    model_boundary_shp_fname = '../data/shp/Coastline_LGATE_070.shp'
+    model_boundary_gdf = gpd.read_file(model_boundary_shp_fname)
+    model_boundary_gdf.to_crs(epsg=spatial.epsg, inplace=True)
+    model_boundary_gdf = gpd.clip(model_boundary_gdf, spatial.bbox_gdf).reset_index(drop=True)       
+    model_boundary_poly = Polygon(model_boundary_gdf.geometry.iloc[0])
+
+    # Import Darling Fault along east
+    shp_fname = '../data/shp/faultlines.shp'
+    gdf = gpd.read_file(shp_fname)
+    gdf = gdf[gdf.Name == 'DARLING SCARP']
+    gdf.to_crs(epsg=spatial.epsg, inplace=True)
+    gdf = gdf.reset_index()
+    darling_fault_ls = gdf.geometry[0]
+    #darling_fault_ls = LineString([(385000, 6510000), (385000, 6550000)]) # Fake fault line
+
+    # Crop model area with Darlng Fault by splitting polygon and keeping one
+    from shapely.ops import split
+    split_polygons = split(model_boundary_poly, darling_fault_ls)
+    model_boundary_poly = split_polygons.geoms[0]
+    
+    # Turn back into a gdf and simplify
+    model_boundary_gdf = gpd.GeoDataFrame(geometry=[model_boundary_poly])
+    model_boundary_gdf.set_crs(epsg=spatial.epsg, inplace=True)  
+    model_boundary_gs = model_boundary_gdf.geometry.simplify(tolerance=simplify_tolerance, preserve_topology=True) # simplify 
+    model_boundary_poly = resample_gdf_poly(model_boundary_gs, node_spacing) # resample 
+    
+    # Create an inner boundary for meshing
+    inner_boundary_poly = model_boundary_poly.buffer(-boundary_buff)
+    inner_boundary_gs = gpd.GeoSeries([inner_boundary_poly])
+    inner_boundary_poly = resample_gdf_poly(inner_boundary_gs, 0.95*node_spacing) #  A few less nodes in inside boundary
+    
+    #refinement_boundary_gs = model_boundary_gdf.buffer(5000)   
+    #refinement_boundary_poly = resample_poly(refinement_boundary_gs, 3000) 
+    spatial.boundary_buff = boundary_buff
+    spatial.model_boundary_gdf = model_boundary_gdf
+    model_boundary_gdf.to_file('../data/shp/model_boundary.shp')
+    spatial.model_boundary_poly = model_boundary_poly
+    spatial.inner_boundary_poly = inner_boundary_poly
+    spatial.x0, spatial.y0, spatial.x1, spatial.y1 = model_boundary_poly.bounds
+
+'''def model_boundary(spatial, boundary_buff, simplify_tolerance, node_spacing):
 
     model_boundary_gdf = gpd.read_file('../data/shp/model_boundary.shp')
     model_boundary_gdf.to_crs(epsg=28350, inplace=True)
@@ -39,7 +90,7 @@ def model_boundary(spatial, boundary_buff, simplify_tolerance, node_spacing):
     model_boundary_gdf.to_file('../modelfiles/model_boundary.shp')
     spatial.model_boundary_poly = model_boundary_poly
     spatial.inner_boundary_poly = inner_boundary_poly
-    spatial.x0, spatial.y0, spatial.x1, spatial.y1 = model_boundary_poly.bounds
+    spatial.x0, spatial.y0, spatial.x1, spatial.y1 = model_boundary_poly.bounds'''
 
 def head_boundary(spatial):    
 
@@ -49,7 +100,7 @@ def head_boundary(spatial):
     new_coords = []
     for coord in coords[:-1]: # Don't include last point
         x,y = coord[0], coord[1]
-        if x > spatial.x1 - 100:
+        if x > spatial.x1 - 300:
             new_coords.append(coord)
     
     chd_east_ls = LineString(new_coords)
@@ -63,9 +114,9 @@ def head_boundary(spatial):
     new_coords = []
     for coord in coords[:-1]: # Don't include last point
         x,y = coord[0], coord[1]
-        if x < 370500:
-            if y < (spatial.y1 - 5):
-                if y > (spatial.y0 + 5):
+        if x < 373000:
+            #if y < (spatial.y1 - 5):
+                #if y > (spatial.y0 + 5):
                     new_coords.append(coord)
     
     chd_west_ls = LineString(new_coords)
@@ -142,11 +193,30 @@ def faults(spatial):
     spatial.faults_gdf = faults_gdf   
     spatial.fault_nodes = fault_nodes
    
+def lakes(spatial):  
+
+    gdf = gpd.read_file('../data/shp/EPP_Lakes.shp')
+    gdf.to_crs(epsg=28350, inplace=True)
+    gdf = gpd.clip(gdf, spatial.model_boundary_poly).reset_index(drop=True)
+    gdf = gdf[gdf.geometry.area > 1000000] # Only plot large lakes
+
+    poly = gdf.geometry.iloc[0]
+    poly = poly.simplify(tolerance=200, preserve_topology=True) # simplify 
+    poly = resample_shapely_poly(poly, distance = 300) # resample 
+
+    #poly = gdf.geometry.iloc[0]
+    #poly = resample_shapely_poly(poly, 400)
+    spatial.lake_poly = poly 
+    spatial.lake_gdf = gpd.GeoDataFrame(geometry = [poly])
+    spatial.lake_nodes = list(spatial.lake_gdf.geometry[0].exterior.coords) 
+
 def plot_spatial(spatial, fault = True, 
                  boundaries = True, 
+                 lake = True,
                  pilotpoints = False,
                  obsbores = True, 
                  geobores = True, 
+                 controlpoints = False,
                  pumpbores = True, 
                  xsections = False, 
                  extent = None):    # extent[[x0,x1], [y0,y1]]
@@ -175,15 +245,27 @@ def plot_spatial(spatial, fault = True,
         spatial.faults_gdf.plot(ax=ax, markersize = 5, color = 'lightblue', zorder=2)
         for node in spatial.fault_nodes: 
             ax.plot(node[0], node[1], 'o', ms = 3, color = 'lightblue', zorder=2)
+
+    if lake:
+        #spatial.lake_gdf.plot(ax=ax, color = 'darkblue', zorder=2)
+        for node in spatial.lake_nodes: 
+            ax.plot(node[0], node[1], 'o', ms = 2, color = 'darkblue', zorder=2)
     
     if boundaries:
         spatial.chd_east_gdf.plot(ax=ax, markersize = 12, color = 'red', zorder=2)
         spatial.chd_west_gdf.plot(ax=ax, markersize = 12, color = 'red', zorder=2)
     
     if geobores:
-        spatial.geobore_gdf.plot(ax=ax, markersize = 12, color = 'green', zorder=2)
-        for x, y, label in zip(spatial.geobore_gdf.geometry.x, spatial.geobore_gdf.geometry.y, spatial.geobore_gdf.ID):
+        gdf = spatial.geobore_gdf[spatial.geobore_gdf.Data_type == 'Raw']
+        gdf.plot(ax=ax, markersize = 12, color = 'green', zorder=2)
+        for x, y, label in zip(gdf.geometry.x, gdf.geometry.y, gdf.ID):
             ax.annotate(label, xy=(x, y), xytext=(2, 2), size = 10, color = 'green', textcoords="offset points")
+
+    if controlpoints:
+        gdf = spatial.geobore_gdf[spatial.geobore_gdf.Data_type == 'Control']
+        gdf.plot(ax=ax, markersize = 12, color = 'purple', zorder=2)
+        for x, y, label in zip(gdf.geometry.x, gdf.geometry.y, gdf.ID):
+            ax.annotate(label, xy=(x, y), xytext=(2, 2), size = 10, color = 'purple', textcoords="offset points")
 
     if obsbores:
         spatial.obsbore_gdf.plot(ax=ax, markersize = 5, color = 'blue', zorder=2)

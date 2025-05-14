@@ -578,7 +578,8 @@ class Geomodel:
 
         # iconvert
         self.iconvert = np.empty_like(self.lith_disv, dtype = float)
-        for n in range(self.nlg): self.iconvert[self.lith_disv==n]  = self.iconvert_perlay[n]
+        for n in range(self.nlg): 
+            self.iconvert[self.lith_disv==n]  = self.iconvert_perlay[n]
         self.iconvert     = self.iconvert[self.cellid_disu != -1].flatten()
                    
         # Force all K tensor angles in fault zone to 0 (Loop can't calculate angles in faulted area properly yet!)

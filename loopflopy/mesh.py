@@ -275,6 +275,7 @@ class Mesh:
         self.wel_cells = [] 
         self.chd_cells = [] 
         self.ghb_cells = [] 
+        self.lak_cells = [] 
         self.poly_cells = []
 
         self.gi = flopy.utils.GridIntersect(self.vgrid)

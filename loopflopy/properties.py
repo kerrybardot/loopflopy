@@ -44,9 +44,15 @@ class Properties:
         self.sills = sills
         self.gdf = gdf[gdf['cell_disu'] != -1] # delete pilot points where layer is pinched out
 
-    def kriging(self, geomodel, mesh, property = 'kh',
-                anisotropy = (1., 1., 1.), CL = 1000., 
-                nugget = 0.05, rebuild_threshold = 0.1):
+    def kriging(self, 
+                geomodel, 
+                mesh, 
+                property = 'kh',
+                anisotropy = (1., 1., 1.), 
+                #return_random=False, # True makes it random with 0 mean and 1 variance, False makes it deterministic
+                CL = 1000., 
+                nugget = 0.05, 
+                rebuild_threshold = 0.1):
 
         ## MAKE AN ARRAY OF X,Y,Z,VAL
         prop_layicpl = 999999 * np.ones((geomodel.nlay, geomodel.ncpl))
