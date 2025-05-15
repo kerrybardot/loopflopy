@@ -12,11 +12,13 @@ def prepare_strat_column(structuralmodel):
     strat = pd.read_excel(structuralmodel.geodata_fname, sheet_name = structuralmodel.strat_sheetname)
     strat_names = strat.unit.tolist()
     lithids = strat.lithid.tolist()
+    print(strat_names)
     vals = strat.val.tolist()
     nlg = len(strat_names) - 1 # number of geological layers
     sequences = strat.sequence.tolist()
-    sequence = list(set(sequences))
-    
+    sequence = list(dict.fromkeys(sequences)) # Preserves order and removes duplicates
+    print(sequence)
+
     # Make bespoke colormap
     stratcolors = []
     for i in range(len(strat)):
