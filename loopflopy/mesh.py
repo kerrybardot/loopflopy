@@ -219,6 +219,7 @@ class Mesh:
             self.xcyc = []
             for cell in self.cell2d:
                 self.xcyc.append((cell[1],cell[2]))
+            self.xc, self.yc = list(zip(*self.xcyc))
 
         if self.plangrid == 'transect':
 

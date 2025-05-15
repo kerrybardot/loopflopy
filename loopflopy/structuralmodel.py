@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors
+import math
+from scipy.interpolate import griddata
 
 class StructuralModel:
     def __init__(self, spatial, bbox, geodata_fname, data_sheetname, strat_sheetname):
@@ -222,3 +224,39 @@ class StructuralModel:
             #plt.axis('equal')
             plt.savefig('../figures/structural_ytransects.png')
             plt.show()
+
+    def contour_bottom(self, spatial, unit, contour_interval):
+        """
+        Contour the bottom of a unit
+        """
+        def rounded_down(number, contour_interval): # rounded_to is the nearest 1, 10, 100 etc
+            return math.floor(number / contour_interval) * contour_interval
+        def rounded_up(number, contour_interval): # rounded_to is the nearest 1, 10, 100 etc
+            return math.ceil(number / contour_interval) * contour_interval
+        
+        # Get the unit data
+        df = self.data[self.data['lithcode'] == unit]
+
+        # Create interpolation grid
+        x = np.linspace(spatial.x0-100, spatial.x1+100, 1000)
+        y = np.linspace(spatial.y0-100, spatial.y1+100, 1000)
+        X, Y = np.meshgrid(x, y)
+        Z = griddata((df.X, df.Y), df.Z, (X, Y), method='linear')
+        
+        fig, ax = plt.subplots(figsize = (7,7))
+        ax.set_title(f'Bottom elevation of {unit} from Raw/Control Points')
+        
+        x, y = spatial.model_boundary_poly.exterior.xy
+        ax.plot(x, y, '-o', ms = 2, lw = 1, color='black')
+        x, y = spatial.inner_boundary_poly.exterior.xy
+        ax.plot(x, y, '-o', ms = 2, lw = 0.5, color='black')
+        ax.plot(df.X, df.Y, 'o', ms = 1, color = 'red')
+
+        # Contours
+        levels = np.arange(rounded_down(df.Z.min(), contour_interval), 
+                        rounded_up(df.Z.max(),contour_interval)+contour_interval, 
+                        contour_interval)
+        #ax.contour(X, Y, Z, levels = levels, extend = 'both', colors = 'Black', linewidths=1., linestyles = 'solid')
+        c = ax.contourf(X, Y, Z, levels = levels, extend = 'both', cmap='coolwarm', alpha = 0.5)
+        ax.clabel(c, colors = 'black', inline=True, fontsize=8, fmt="%.0f")
+        plt.colorbar(c, ax = ax, shrink = 0.5)

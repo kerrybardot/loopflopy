@@ -4,6 +4,8 @@ import math
 from datetime import datetime
 import matplotlib.pyplot as plt
 import matplotlib.colors
+from scipy.interpolate import griddata
+
 logfunc = lambda e: np.log10(e)
 
 # angle 1 (DIP DIRECTION) rotates around z axis counterclockwise looking from +ve z.
@@ -194,7 +196,7 @@ class Geomodel:
             W = V[1:, :] - V[:-1, :] 
             #W = V[1:, :] - V[:-1, :] 
             if np.any(W < 0):
-                print(f'Geology repeats itself {np.sum(W < 0)} times at {np.where(W < 0)}')
+                #print(f'Geology repeats itself {np.sum(W < 0)} times at {np.where(W < 0)}')
                 W[W < 0] = 0 # this is to handle instances where geology goes in reverse order (back to a younger sequence)
 
             
@@ -492,6 +494,9 @@ class Geomodel:
             for icpl in range(mesh.ncpl):
                 self.zc[lay, icpl] = self.botm[lay, icpl] + self.thick[lay, icpl]/2
 
+        self.vgrid = flopy.discretization.VertexGrid(vertices=mesh.vertices, cell2d=mesh.cell2d, ncpl = mesh.ncpl, 
+                                                     top = self.top_geo, botm = self.botm)
+
         t1 = datetime.now()
         run_time = t1 - t0
         print('Time taken Block 5 gradients= ', run_time.total_seconds())
@@ -664,7 +669,8 @@ class Geomodel:
         ax.set_xlabel('x (m)', size = 10)
         ax.set_ylabel('z (m)', size = 10)
         ax.set_ylim([z0, z1])
-        #linecollection = xsect.plot_grid(lw = 0.1, color = 'black') # Don't plot grid for reference
+  
+        linecollection = xsect.plot_grid(lw = 0.1, color = 'black') 
         
         labels = structuralmodel.strat_names[1:]
         ticks = [i for i in np.arange(0,len(labels))]
@@ -692,4 +698,79 @@ class Geomodel:
                     break
         self.surf_lith = surf_lith
 
-    
+    def contour_bottom(self, spatial, mesh, structuralmodel, unit, contour_interval):
+        """
+        Contour the bottom of a unit
+        """
+        def rounded_down(number, contour_interval): # rounded_to is the nearest 1, 10, 100 etc
+            return math.floor(number / contour_interval) * contour_interval
+        def rounded_up(number, contour_interval): # rounded_to is the nearest 1, 10, 100 etc
+            return math.ceil(number / contour_interval) * contour_interval
+        
+        #geo_lay = self.strat_names[self.strat_names == unit]
+        geo_lay = np.where(np.array(self.strat_names) == unit)[0][0]
+
+        print(unit, geo_lay)
+
+        # Create interpolation grid
+        x = np.linspace(spatial.x0-100, spatial.x1+100, 1000)
+        y = np.linspace(spatial.y0-100, spatial.y1+100, 1000)
+        X, Y = np.meshgrid(x, y)
+        Z = griddata((mesh.xc, mesh.yc), self.botm_geo[geo_lay], (X, Y), method='linear')
+        
+        fig, ax = plt.subplots(figsize = (7,7))
+        ax.set_title(f'Bottom elevation of {unit} from geo model')
+        
+        x, y = spatial.model_boundary_poly.exterior.xy
+        ax.plot(x, y, '-o', ms = 2, lw = 1, color='black')
+        x, y = spatial.inner_boundary_poly.exterior.xy
+        ax.plot(x, y, '-o', ms = 2, lw = 0.5, color='black')
+
+        # Plot raw data points
+        df = structuralmodel.data[structuralmodel.data['lithcode'] == unit]
+        ax.plot(df.X, df.Y, 'o', ms = 1, color = 'red')
+
+        # Contours
+        levels = np.arange(rounded_down(self.botm_geo[geo_lay].min(), contour_interval), 
+                        rounded_up(self.botm_geo[geo_lay].max(),contour_interval)+contour_interval, 
+                        contour_interval)
+        #ax.contour(X, Y, Z, levels = levels, extend = 'both', colors = 'Black', linewidths=1., linestyles = 'solid')
+        c = ax.contourf(X, Y, Z, levels = levels, extend = 'both', cmap='coolwarm', alpha = 0.5)
+        ax.clabel(c, colors = 'black', inline=True, fontsize=8, fmt="%.0f")
+        plt.colorbar(c, ax = ax, shrink = 0.5)
+        
+    def contour_surface(self, spatial, mesh, structuralmodel, contour_interval):
+        """
+        Contour the model top
+        """
+        def rounded_down(number, contour_interval): # rounded_to is the nearest 1, 10, 100 etc
+            return math.floor(number / contour_interval) * contour_interval
+        def rounded_up(number, contour_interval): # rounded_to is the nearest 1, 10, 100 etc
+            return math.ceil(number / contour_interval) * contour_interval
+        
+        # Create interpolation grid
+        x = np.linspace(spatial.x0-100, spatial.x1+100, 1000)
+        y = np.linspace(spatial.y0-100, spatial.y1+100, 1000)
+        X, Y = np.meshgrid(x, y)
+        Z = griddata((mesh.xc, mesh.yc), self.top_geo, (X, Y), method='linear')
+        
+        fig, ax = plt.subplots(figsize = (7,7))
+        ax.set_title(f'Top elevation of geo model')
+        
+        x, y = spatial.model_boundary_poly.exterior.xy
+        ax.plot(x, y, '-o', ms = 2, lw = 1, color='black')
+        x, y = spatial.inner_boundary_poly.exterior.xy
+        ax.plot(x, y, '-o', ms = 2, lw = 0.5, color='black')
+        
+        # Plot raw data points
+        df = structuralmodel.data[structuralmodel.data['lithcode'] == 'Ground']
+        ax.plot(df.X, df.Y, 'o', ms = 1, color = 'red')
+
+        # Contours
+        levels = np.arange(rounded_down(self.top_geo.min(), contour_interval), 
+                        rounded_up(self.botm_geo.max(),contour_interval)+contour_interval, 
+                        contour_interval)
+        #ax.contour(X, Y, Z, levels = levels, extend = 'both', colors = 'Black', linewidths=1., linestyles = 'solid')
+        c = ax.contourf(X, Y, Z, levels = levels, extend = 'both', cmap='coolwarm', alpha = 0.5)
+        ax.clabel(c, colors = 'black', inline=True, fontsize=8, fmt="%.0f")
+        plt.colorbar(c, ax = ax, shrink = 0.5)
