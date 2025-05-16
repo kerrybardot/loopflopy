@@ -10,20 +10,6 @@ class DEM:
     
     def __init__(self, geotiff_fname):   
         self.geotiff_fname = geotiff_fname
-    
-    def resample_topo(self, project, mesh, spatial):
-        fine_topo = flopy.utils.Raster.load(self.geotiff_fname)
-        topo_cropped = fine_topo.crop(spatial.model_boundary_poly)
-        print(mesh.vgrid.crs)
-        print(fine_topo.crs)
-        topo = fine_topo.resample_to_grid(mesh.vgrid, band=fine_topo.bands[0], method="linear", extrapolate_edges=True,)
-        fname = project.workspace + 'topo.pkl'
-        pickle.dump(topo, open(os.path.join(fname),'wb'))
-
-    def load_topo(self, project):
-        pickleoff = open(project.workspace + 'topo.pkl','rb')
-        self.topo = pickle.load(pickleoff)
-        pickleoff.close()
 
     def plot_geotiff(self):
         with rasterio.open(self.geotiff_fname) as src:
@@ -43,6 +29,20 @@ class DEM:
         plt.ylabel('Row Number')
         plt.show()
     
+    def resample_topo(self, project, mesh, spatial):
+        fine_topo = flopy.utils.Raster.load(self.geotiff_fname)
+        topo_cropped = fine_topo.crop(spatial.model_boundary_poly)
+        print(mesh.vgrid.crs)
+        print(fine_topo.crs)
+        topo = fine_topo.resample_to_grid(mesh.vgrid, band=fine_topo.bands[0], method="linear", extrapolate_edges=True,)
+        fname = project.workspace + 'topo.pkl'
+        pickle.dump(topo, open(os.path.join(fname),'wb'))
+
+    def load_topo(self, project):
+        pickleoff = open(project.workspace + 'topo.pkl','rb')
+        self.topo = pickle.load(pickleoff)
+        pickleoff.close()
+
     def plot_topo(self, mesh, levels):
         fig = plt.figure(figsize=(10,10))
         ax = fig.add_subplot()

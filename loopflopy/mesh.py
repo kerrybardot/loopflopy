@@ -366,7 +366,7 @@ class Mesh:
                     
                     flag += 1
             
-    def plot_cell2d(self, spatial, features = None, xlim = None, ylim = None):
+    def plot_cell2d(self, spatial, features = None, xlim = None, ylim = None, labels = False):
         
         fig = plt.figure(figsize=(7,7))
         ax = plt.subplot(1, 1, 1, aspect='auto')
@@ -391,18 +391,21 @@ class Mesh:
             
         if 'geo' in features:
             spatial.geobore_gdf.plot(ax=ax, markersize = 7, color = 'green', zorder=2)
-            for x, y, label in zip(spatial.geobore_gdf.geometry.x, spatial.geobore_gdf.geometry.y, spatial.obsbore_gdf.ID):
-                ax.annotate(label, xy=(x, y), xytext=(2, 2), size = 8, textcoords="offset points")
+            if labels:
+                for x, y, label in zip(spatial.geobore_gdf.geometry.x, spatial.geobore_gdf.geometry.y, spatial.obsbore_gdf.ID):
+                    ax.annotate(label, xy=(x, y), xytext=(2, 2), size = 8, textcoords="offset points")
 
         if 'obs' in features:
             spatial.obsbore_gdf.plot(ax=ax, markersize = 7, color = 'darkblue', zorder=2)
-            for x, y, label in zip(spatial.obsbore_gdf.geometry.x, spatial.obsbore_gdf.geometry.y, spatial.obsbore_gdf.ID):
-                ax.annotate(label, xy=(x, y), xytext=(2, 2), size = 8, textcoords="offset points")
+            if labels:
+                for x, y, label in zip(spatial.obsbore_gdf.geometry.x, spatial.obsbore_gdf.geometry.y, spatial.obsbore_gdf.ID):
+                    ax.annotate(label, xy=(x, y), xytext=(2, 2), size = 8, textcoords="offset points")
 
         if 'wel' in features:
             spatial.pumpbore_gdf.plot(ax=ax, markersize = 12, color = 'red', zorder=2) 
-            for x, y, label in zip(spatial.pumpbore_gdf.geometry.x, spatial.pumpbore_gdf.geometry.y, spatial.pumpbore_gdf.ID):
-                ax.annotate(label, xy=(x, y), xytext=(2, 2), size = 8, textcoords="offset points")
+            if labels:
+                for x, y, label in zip(spatial.pumpbore_gdf.geometry.x, spatial.pumpbore_gdf.geometry.y, spatial.pumpbore_gdf.ID):
+                    ax.annotate(label, xy=(x, y), xytext=(2, 2), size = 8, textcoords="offset points")
         
         if 'fault' in features:
             spatial.faults_gdf.plot(ax=ax, color = 'red', zorder=2)
@@ -480,4 +483,22 @@ class Mesh:
 
         plt.savefig('../figures/special_cells.png')
 
+    def plot_surface_array(self, array, structuralmodel, plot_data = False, lithcode = None,
+                           vmin = None, vmax = None, levels = None, title = None):
+        
+        fig = plt.figure(figsize=(10,10))
+        ax = fig.add_subplot()
+        if title: ax.set_title(title)
+        
+        # plot grid
+        pmv = flopy.plot.PlotMapView(modelgrid=self.vgrid)
+        
+        # plot array
+        t = pmv.plot_array(array, vmin = vmin, vmax = vmax)
+        cbar = plt.colorbar(t, shrink = 0.5)  
+        cg = pmv.contour_array(array, levels=levels, linewidths=0.8, colors="0.75")
+        
+        if plot_data:# Plot raw data points
+            df = structuralmodel.data[structuralmodel.data['lithcode'] == lithcode]
+            ax.plot(df.X, df.Y, 'o', ms = 3, color = 'red')
     
