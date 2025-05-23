@@ -154,7 +154,7 @@ class StructuralModel:
         for item in self.strat['sequence'].tolist():
             if item not in self.sequence_names:
                 self.sequence_names.append(item)
-        #print(self.sequence_names)
+        print(self.sequence_names)
 
         x0 = kwargs.get('x0', self.x0)
         z0 = kwargs.get('z0', self.z0)

@@ -44,12 +44,94 @@ class Properties:
         self.sills = sills
         self.gdf = gdf[gdf['cell_disu'] != -1] # delete pilot points where layer is pinched out
 
+    def stochasticfieldgeneration(self, 
+                geomodel, 
+                mesh, 
+                property = 'prop',
+                anisotropy = (1., 1., 1.), 
+                return_random=True, # True makes it random with 0 mean and 1 variance, False makes it deterministic
+                CL = 1000., 
+                nugget = 0.05, 
+                rebuild_threshold = 0.1):
+
+        ## MAKE AN ARRAY OF X,Y,Z,VAL
+        prop_layicpl = 999999 * np.ones((geomodel.nlay, geomodel.ncpl))
+
+
+        for geolay, unit in enumerate(geomodel.units): # for each unit...
+            print('###### ', unit, '#########\n')
+            gdf = self.gdf[self.gdf.Unit == unit]
+            pv = []
+
+            for sublay in range(geomodel.nls): # for each sublayer in unit..
+                for icpl in range(geomodel.ncpl): # for each cell in plan...
+                
+                    lay = geolay * geomodel.nls + sublay # Zero based
+                    disvcell = icpl + lay*geomodel.ncpl
+                    
+                    x = mesh.xcyc[icpl][0]
+                    y = mesh.xcyc[icpl][1]
+                    z = geomodel.zcenters[lay, icpl]
+
+                    if disvcell in gdf.cell_disv.values and geomodel.idomain[lay, icpl] == 1: # only include cells not pinched out
+                        id = gdf.loc[gdf['cell_disv'] == disvcell, 'ID'].values[0]
+                        val = np.log10(gdf.loc[gdf['cell_disv'] == disvcell, property].values)[0]
+                        print(id, unit, 'disv_cell', disvcell, 'val', val)
+            
+                    else:
+                        val = np.nan        
+                            
+                    pv.append([x, y, z, val])
+            
+            points_values_3d = np.array(pv)
+            print('points_values_3d.shape ', points_values_3d.shape)
+            print('sill ', self.sills[geolay])
+            
+            n_neighbors = len(gdf.ID.values) # number of neighbours to use in kriging
+            print(n_neighbors)
+            random_values = optimized_kriging(points_values_3d, #x y z val USE LOG K
+                            n_neighbors = n_neighbors, # determines how many neighbours
+                            variogram_model="spherical", 
+                            CL = CL,  # Correlation length
+                            sill = self.sills[geolay],  # maximum variance - replace with spreadsheet
+                            nugget = nugget, # value at 0 distance
+                            return_random = True, #False is kriging (deterministic), True is stochastoc
+                            random_seed = None, 
+                            initial_points=10, # number of points to sample for initial variogram (assuming all points are nan)
+                            unknown_value_flag=np.nan, 
+                            anisotropy=anisotropy,
+                            rebuild_threshold=rebuild_threshold) # how often to recreate KDTree e.g. every 0.1% of points rebuild KDTree'''
+
+            points_values_3d[:,-1][np.isnan(points_values_3d[:,-1])] = random_values
+            prop_values = points_values_3d[:,-1]
+            print('prop_values ', prop_values.shape)
+
+            prop_values = prop_values.reshape(geomodel.nls, geomodel.ncpl) # reshape into layers
+            print('prop_values ', prop_values.shape)
+
+            for sublay in range(geomodel.nls):
+                lay = geolay * geomodel.nls + sublay # Zero based
+                prop_layicpl[lay,:] = prop_values[sublay, :] # assign to the correct layer in the disv grid
+        
+        prop_layicpl_ma = np.ma.masked_where(geomodel.idomain != 1, prop_layicpl)
+        prop_disv = prop_layicpl_ma.flatten()
+        prop_disu = prop_layicpl_ma.compressed()
+
+        setattr(self, f'log{property}_layicpl_ma', prop_layicpl_ma)
+        setattr(self, f'log{property}_disv', prop_disv)
+        setattr(self, f'log{property}_disu', prop_disu)
+        setattr(self, f'{property}_layicpl_ma', 10**prop_layicpl_ma)
+        setattr(self, f'{property}_disv', 10**prop_disv)
+        setattr(self, f'{property}_disu', 10**prop_disu)
+    
+    
+    
     def kriging(self, 
                 geomodel, 
                 mesh, 
                 property = 'kh',
                 anisotropy = (1., 1., 1.), 
-                #return_random=False, # True makes it random with 0 mean and 1 variance, False makes it deterministic
+                return_random=False, # True makes it random with 0 mean and 1 variance, False makes it deterministic
                 CL = 1000., 
                 nugget = 0.05, 
                 rebuild_threshold = 0.1):

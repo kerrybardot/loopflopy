@@ -194,8 +194,9 @@ def create_structuralmodel(structuralmodel, Fault = True):
         print('Fault included!')
         Fault = model.create_and_add_fault('Fault', displacement = 400,)
         
-    model.create_and_add_foliation("Kcok", nelements=1e4, buffer=0.1)
-    model.create_and_add_foliation("Leed", nelements=1e4, buffer=0.1)    
+    Kcok    = model.create_and_add_foliation("Kcok", nelements=1e4, buffer=0.1)
+    Kcok_UC = model.add_unconformity(Kcok, structuralmodel.strat[structuralmodel.strat.unit == 'Kcok'].val.iloc[0]) 
+    Leed    = model.create_and_add_foliation("Leed", nelements=1e4, buffer=0.1)    
     model.set_stratigraphic_column(structuralmodel.strat_col)
     
     structuralmodel.model = model
