@@ -7,6 +7,8 @@ from shapely.geometry import LineString,Point,Polygon,MultiPolygon,MultiPoint,sh
 from flopy.discretization import VertexGrid
 from flopy.utils.triangle import Triangle as Triangle
 from flopy.utils.voronoi import VoronoiGrid
+from matplotlib import gridspec
+from matplotlib.colors import BoundaryNorm, ListedColormap
 
 class Mesh:    
     def __init__(self, plangrid, **kwargs):       
@@ -277,6 +279,7 @@ class Mesh:
         self.chd_cells = [] 
         self.ghb_cells = [] 
         self.lak_cells = [] 
+        self.drn_cells = [] 
         self.poly_cells = []
 
         self.gi = flopy.utils.GridIntersect(self.vgrid)
@@ -347,26 +350,25 @@ class Mesh:
                         self.ghb_cells.append(cell)
                         self.ibd[cell] = flag
                     flag += 1
-                    
+                             
             if group == 'poly':    
                 for i, subgroup in enumerate(subgroups): # e.g. for 'river1' in poly   
                     self.cell_type.append(f'{group} - {subgroup}')
                     att_name = f"{subgroup}_poly"
                     poly = getattr(spatial, att_name)
+                    result = self.gi.intersect(poly)
+                    cells = result.cellids
+
+                    for cell in cells:
+                        self.ibd[cell] = flag
                     
-                    cells = []
-                    for i in self.xcyc:
-                        point = Point((i[0], i[1]))
-                        if poly.contains(point):
-                            cell = self.gi.intersect(point)["cellids"][0]
-                            cells.append(cell)
-                            self.ibd[cell] = flag
                     att_name = f"poly_{subgroup}_cells"
+                    print(att_name)
                     setattr(self, att_name, cells)
                     
                     flag += 1
             
-    def plot_cell2d(self, spatial, features = None, xlim = None, ylim = None, labels = False):
+    def plot_cell2d(self, spatial, features = None, xlim = None, ylim = None, nodes = False, labels = False):
         
         fig = plt.figure(figsize=(7,7))
         ax = plt.subplot(1, 1, 1, aspect='auto')
@@ -374,16 +376,14 @@ class Mesh:
         if ylim: ax.set_ylim(ylim) 
         ax.set_title('Number cells in plan (ncpl): ' + str(len(self.cell2d)))
     
-        if self.plangrid == 'car': self.sg.plot(ax = ax, color = 'gray', lw = 0.4) 
-        if self.plangrid == 'tri': self.tri.plot(ax = ax, edgecolor='gray', lw = 0.4)
-        if self.plangrid == 'vor': self.vor.plot(ax = ax, edgecolor='black', lw = 0.4)
-        
         pmv = flopy.plot.PlotMapView(ax = ax, modelgrid=self.vgrid)
+        pmv.plot_grid(color = 'gray', lw = 0.8)
 
         for i in self.xcyc: 
                 ax.plot(i[0], i[1], 'o', color = 'green', ms = 0.5)    
-        for i in self.nodes: 
-            ax.plot(i[0], i[1], 'o', ms = 2, color = 'black')
+        if nodes:
+            for i in self.nodes: 
+                ax.plot(i[0], i[1], 'o', ms = 1, color = 'black')
         x, y = spatial.model_boundary_poly.exterior.xy
         ax.plot(x, y, '-o', ms = 2, lw = 1, color='black')
         x, y = spatial.inner_boundary_poly.exterior.xy
@@ -417,8 +417,7 @@ class Mesh:
             
     def plot_feature_cells(self, spatial, xlim = None, ylim = None): # e.g xlim = [700000, 707500]
         
-        from matplotlib import gridspec
-        from matplotlib.colors import BoundaryNorm, ListedColormap
+
 
         fig = plt.figure(figsize=(7,5))
         spec = gridspec.GridSpec(nrows=1, ncols=2, width_ratios=[1, 0.05], wspace=0.2)
@@ -429,7 +428,8 @@ class Mesh:
         ax.set_title('Special cells')
             
         pmv = flopy.plot.PlotMapView(ax = ax, modelgrid=self.vgrid)
-        
+        #pmv.plot_grid(color = 'gray', lw = 0.8)
+
         unique_ibd = np.unique(self.ibd)
         print(unique_ibd)
         bounds = np.append(unique_ibd, unique_ibd[-1]+1)
@@ -442,9 +442,6 @@ class Mesh:
         ma = np.ma.masked_where(mask, self.ibd)
         p = pmv.plot_array(ma, alpha = 0.6, cmap = cmap, norm = norm)
         
-        if self.plangrid == 'car': self.sg.plot(ax=ax, color = 'gray', lw = 0.4) 
-        #if self.plangrid == 'tri': self.tri.plot(ax=ax, edgecolor='gray', lw = 0.4)
-        if self.plangrid == 'vor': self.vor.plot(ax=ax, edgecolor='black', lw = 0.4)  
         
         for group in self.special_cells:
             
@@ -499,6 +496,6 @@ class Mesh:
         cg = pmv.contour_array(array, levels=levels, linewidths=0.8, colors="0.75")
         
         if plot_data:# Plot raw data points
-            df = structuralmodel.data[structuralmodel.data['lithcode'] == lithcode]
-            ax.plot(df.X, df.Y, 'o', ms = 3, color = 'red')
+            df = structuralmodel.data
+            ax.plot(df.X, df.Y, 'o', ms = 2, color = 'red')
     

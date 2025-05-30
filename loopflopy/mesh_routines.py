@@ -6,6 +6,68 @@ import math
 import flopy
 from collections import OrderedDict
 
+def create_structured_mesh(bbox, ncol, nrow):
+
+    from loopflopy.mesh import Mesh
+    mesh = Mesh(plangrid = 'car') 
+    mesh.ncol, mesh.nrow = ncol, nrow
+
+    x0 = bbox[0][0]
+    y0 = bbox[0][1]
+    x1 = bbox[1][0]
+    y1 = bbox[1][1]
+
+    delx = (x1 - x0)/ncol
+    dely = (y1 - y0)/nrow
+    delr = delx * np.ones(ncol, dtype=float)
+    delc = dely * np.ones(nrow, dtype=float)
+    top  = np.ones((nrow, ncol), dtype=float)
+    botm = np.zeros((1, nrow, ncol), dtype=float)
+
+    sg = flopy.discretization.StructuredGrid(delr=delr, delc=delc, top=top, botm=botm, 
+                                             xoff = x0, yoff = y0)
+    xyzcenters = sg.xyzcellcenters
+
+
+    xcenters = xyzcenters[0][0]
+    ycenters = [xyzcenters[1][i][0] for i in range(nrow)]
+    mesh.xcenters, mesh.ycenters = xcenters, ycenters
+
+    cell2d = []
+    xcyc = [] # added 
+    for n in range(nrow*ncol):
+        l,r,c = sg.get_lrc(n)[0]
+        xc = xcenters[c]
+        yc = ycenters[r]
+        iv1 = c + r * (ncol + 1)  # upper left
+        iv2 = iv1 + 1
+        iv3 = iv2 + ncol + 1
+        iv4 = iv3 - 1
+        cell2d.append([n, xc, yc, 5, iv1, iv2, iv3, iv4, iv1])
+        xcyc.append((xc, yc))
+    
+    vertices = []
+    xa = np.arange(x0, x1 + delx, delx)      
+    ya = np.arange(y1, y0 - dely/2, -dely)
+    mesh.xa, mesh.ya = xa, ya
+    n = 0
+    for j in ya:
+        for i in xa:
+            vertices.append([n, i, j])
+            n+=1
+    mesh.sg = sg    
+    mesh.cell2d = cell2d
+    mesh.xcyc = xcyc
+    mesh.vertices = vertices
+    mesh.ncpl = len(cell2d)
+    
+    mesh.vgrid = flopy.discretization.VertexGrid(vertices=vertices, 
+                                                 cell2d=cell2d, 
+                                                 ncpl = mesh.ncpl, 
+                                                 nlay = 1)
+    mesh.gi = flopy.utils.GridIntersect(mesh.vgrid)
+    return mesh
+
 def resample_gs(gs, distance): # gdf contains a single polygon
     exterior_coords = list(gs.exterior.coords)
     exterior_line = LineString(exterior_coords)

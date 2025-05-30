@@ -5,7 +5,15 @@ import pandas as pd
 import itertools
 import matplotlib.pyplot as plt
 import loopflopy
-from loopflopy.mesh_routines import resample_linestring, resample_poly 
+from loopflopy.mesh_routines import resample_linestring #, resample_poly 
+
+def make_bbox_shp(x0, x1, y0, y1, crs, fname):
+    xcoords = [x0, x1, x1, x0, x0]
+    ycoords = [y0, y0, y1, y1, y0]
+    bbox = Polygon(list(zip(xcoords, ycoords)))
+    bbox_gdf = gpd.GeoDataFrame(geometry=[bbox], crs = crs)
+    bbox_gdf.to_file(fname)
+    return bbox
 
 def remove_duplicate_points(polygon):
     # Extract unique points using LinearRing

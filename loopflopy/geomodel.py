@@ -5,6 +5,8 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import matplotlib.colors
 from scipy.interpolate import griddata
+from shapely.geometry import LineString
+import geopandas as gpd
 
 logfunc = lambda e: np.log10(e)
 
@@ -61,13 +63,14 @@ def reshape_loop2mf(array, nlay, ncpl):
     
 class Geomodel:
     
-    def __init__(self, scenario, vertgrid, z0, z1, transect = False, **kwargs):     
+    def __init__(self, scenario, vertgrid, z0, z1, transect = False, nlg = None, **kwargs):     
            
         self.scenario = scenario                      
         self.vertgrid = vertgrid     
         self.z0 = z0
         self.z1 = z1
         self.transect = transect
+        self.nlg = nlg # option to only use a subset of geological layers (from top)
         
 
         for key, value in kwargs.items():
@@ -79,7 +82,8 @@ class Geomodel:
         #print('   Creating Geomodel (lithology and discretisation arrays) for ', self.scenario, ' ...')
         
         self.strat_names = structuralmodel.strat_names[1:]
-        self.nlg = len(self.strat_names)  
+        if self.nlg is None:
+            self.nlg = len(self.strat_names)  
         z0, z1 = self.z0, self.z1
         self.ncpl = mesh.ncpl
 
@@ -213,7 +217,7 @@ class Geomodel:
                 # IDOMAIN
                 present = np.unique(V[:,icpl])
                 for p in present:
-                    if p >= 0: # don't include above ground
+                    if p >= 0: # don't include above ground 
                         idomain_geo[p, icpl] = 1
                 
                 stop = np.array([nlay-1]) # Add the last layer to start with
@@ -628,15 +632,17 @@ class Geomodel:
 
         fig = plt.figure(figsize = (10, 6))
         ax = plt.subplot(111)
+        ax.set_aspect('equal')
         ax.set_title('surface geology', size = 10)
 
-        if mesh.plangrid == 'car': mesh.sg.plot(color = 'black', lw = 0.2) 
-        if mesh.plangrid == 'tri': mesh.tri.plot(edgecolor='black', lw = 0.2)
-        if mesh.plangrid == 'vor': mesh.vor.plot(edgecolor='black', lw = 0.2)
+        #if mesh.plangrid == 'car': mesh.sg.plot(color = 'black', lw = 0.2) 
+        #if mesh.plangrid == 'tri': mesh.tri.plot(edgecolor='black', lw = 0.2)
+        #if mesh.plangrid == 'vor': mesh.vor.plot(edgecolor='black', lw = 0.2)
 
-        mapview = flopy.plot.PlotMapView(modelgrid=self.vgrid, layer = 0)
+        mapview = flopy.plot.PlotMapView(modelgrid=self.vgrid, layer = 0, ax = ax)
         
-        plan = mapview.plot_array(self.surf_lith, cmap=structuralmodel.cmap, norm = structuralmodel.norm, alpha=0.8)
+        plan = mapview.plot_array(self.surf_lith, cmap=structuralmodel.cmap, norm = structuralmodel.norm, 
+                                  alpha=0.8, ax = ax)
         ax.set_xlabel('x (m)', size = 10)
         ax.set_ylabel('y (m)', size = 10)
         
@@ -644,15 +650,35 @@ class Geomodel:
         ticks = [i for i in np.arange(0,len(labels))]
         boundaries = np.arange(-1,len(labels),1)+0.5       
         
-        ax.plot([x0, x1], [y0, y1], color = 'black', lw = 1)
-        for node in spatial.interface_nodes:
-            ax.plot(node[0], node[1], 'o', color = 'black', markersize = 2)
+        
+        # Create interpolation grid
+        x = np.linspace(spatial.x0-100, spatial.x1+100, 1000)
+        y = np.linspace(spatial.y0-100, spatial.y1+100, 1000)
+        X, Y = np.meshgrid(x, y)
+        Z = griddata((mesh.xc, mesh.yc), self.surf_lith, (X, Y), method='linear')
+
+        # Contours
+        levels = np.arange(0, self.nlg+1, 1)
+        contour = ax.contour(X, Y, Z, levels = levels, extend = 'both', colors = 'Black', 
+                   linewidths=1., linestyles = 'solid')
+        
         cbar = plt.colorbar(plan,
                     boundaries = boundaries,
                     shrink = 1.0)
         cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 8, verticalalignment = 'center')   
         plt.tight_layout()  
         plt.show()
+
+        # Extract contour lines
+        contour_lines = []
+        for collection in contour.collections:
+            for path in collection.get_paths():
+                v = path.vertices
+                contour_lines.append(LineString(v))
+
+        #save_contour_lines_to_shapefile
+        gdf = gpd.GeoDataFrame(geometry=contour_lines, crs = spatial.epsg)
+        gdf.to_file('../modelfiles/surface_contours.shp', driver='ESRI Shapefile')
 
     def geomodel_transect_lith(self, structuralmodel, spatial, **kwargs):
         x0 = kwargs.get('x0', spatial.x0)

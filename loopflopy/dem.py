@@ -29,9 +29,9 @@ class DEM:
         plt.ylabel('Row Number')
         plt.show()
     
-    def resample_topo(self, project, mesh, spatial):
+    def resample_topo(self, project, mesh, crop_polygon):
         fine_topo = flopy.utils.Raster.load(self.geotiff_fname)
-        topo_cropped = fine_topo.crop(spatial.model_boundary_poly)
+        topo_cropped = fine_topo.crop(crop_polygon)
         print(mesh.vgrid.crs)
         print(fine_topo.crs)
         topo = fine_topo.resample_to_grid(mesh.vgrid, band=fine_topo.bands[0], method="linear", extrapolate_edges=True,)

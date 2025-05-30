@@ -7,10 +7,11 @@ import math
 from scipy.interpolate import griddata
 
 class StructuralModel:
-    def __init__(self, spatial, bbox, geodata_fname, data_sheetname, strat_sheetname):
+    def __init__(self, bbox, geodata_fname, data_sheetname, strat_sheetname):
         self.geodata_fname = geodata_fname
         self.data_sheetname = data_sheetname
         self.strat_sheetname = strat_sheetname
+        self.bbox = bbox
         self.origin = bbox[0] #np.array([spatial.x0, spatial.y0, spatial.z0]).astype(float)
         self.maximum = bbox[1] #np.array([spatial.x1, spatial.y1, spatial.z1]).astype(float)
 
@@ -33,25 +34,29 @@ class StructuralModel:
         Y = np.tile(y, (len(z), 1)) 
         Z = np.tile(z[:, np.newaxis], (1, nh))  # Repeat z along columns (nh times)
 
+        a = np.array([X.flatten(),Y.flatten(),Z.flatten()]).T
+        V = self.model.evaluate_model(a).reshape(np.shape(X))
+
+        extent0 = 0
+        extent1 = np.sqrt((x1-x0)**2 + (y1-y0)**2)
+        fig, ax = plt.subplots(figsize=(10,4))
+
+        csa = plt.imshow(np.ma.masked_where(V<0,V), origin = "lower", 
+                         extent = [extent0, extent1,z0,z1], #[x0,x1,z0,z1], 
+                         aspect = 'auto',
+                         cmap = self.cmap, norm = self.norm, )
+        
         labels = self.strat_names[1:]
         ticks = [i for i in np.arange(0,len(labels))]
         boundaries = np.arange(-1,len(labels),1)+0.5
 
-        a = np.array([X.flatten(),Y.flatten(),Z.flatten()]).T
-        V = self.model.evaluate_model(a).reshape(np.shape(X))
-
-        fig, ax = plt.subplots(figsize=(10,4))
-
-        csa = plt.imshow(np.ma.masked_where(V<0,V), origin = "lower", extent = [x0,x1,z0,z1], aspect = 'auto',
-                         cmap = self.cmap, norm = self.norm, )
-        
         cbar = plt.colorbar(csa,
                             boundaries = boundaries,
                             shrink = 0.2
                             )
         cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 8, verticalalignment = 'center')    
         #plt.xticks(ticks = [], labels = [])
-        plt.xlabel('Easting (m)')
+        plt.xlabel('Distance along transect (m)')
         plt.ylabel('Elev. (mAHD)')
         plt.title(title, size = 8)
         
@@ -225,7 +230,7 @@ class StructuralModel:
             plt.savefig('../figures/structural_ytransects.png')
             plt.show()
 
-    def contour_bottom(self, spatial, unit, contour_interval):
+    def contour_bottom(self, spatial, contour_interval, unit = False, **kwargs):
         """
         Contour the bottom of a unit
         """
@@ -235,8 +240,10 @@ class StructuralModel:
             return math.ceil(number / contour_interval) * contour_interval
         
         # Get the unit data
-        df = self.data[self.data['lithcode'] == unit]
-
+        if unit:
+            df = self.data[self.data['lithcode'] == unit]
+        else:
+            df = self.data
         # Create interpolation grid
         x = np.linspace(spatial.x0-100, spatial.x1+100, 1000)
         y = np.linspace(spatial.y0-100, spatial.y1+100, 1000)
