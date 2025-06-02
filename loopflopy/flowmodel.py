@@ -34,7 +34,7 @@ class Flowmodel:
        
         for key, value in kwargs.items():
             setattr(self, key, value)    
-
+        print('mf6 executable expected: ', self.project.mfexe)
         # -------------- SIM -------------------------
         sim = flopy.mf6.MFSimulation(sim_name = 'sim', 
                                      version = 'mf6',
@@ -135,6 +135,17 @@ class Flowmodel:
             rch = flopy.mf6.modflow.mfgwfrch.ModflowGwfrch(gwf, 
                                                            maxbound = len(self.data.rch_rec),
                                                            stress_period_data = self.data.rch_rec,)          
+            
+        # -------------- EVTA-------------------------
+        if self.evta:
+            fixed_cell, surface, depth, rate = self.data.evta_pars
+            evta = flopy.mf6.ModflowGwfevta(gwf,
+                                           surface = surface,
+                                           depth = depth,
+                                           rate = rate,
+                                           save_flows = True,
+                                           fixed_cell =fixed_cell)  
+        
         # -------------- OBS -------------------------
         if self.obs: 
             csv_file = self.scenario + "_observations.csv" # To write observation to

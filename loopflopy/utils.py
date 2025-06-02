@@ -145,6 +145,7 @@ def xyz_to_disvcell(geomodel, x,y,z): # zerobased
 def xyz_to_disucell(geomodel, x,y,z): # zerobased
     nlay, ncpl = geomodel.cellid_disv.shape
     point = Point(x,y,z)
+    print(point)
     lay, icpl = geomodel.vgrid.intersect(x,y,z)
     disvcell = icpl + lay*ncpl
     disucell = geomodel.cellid_disu.flatten()[disvcell]

@@ -7,6 +7,8 @@ import matplotlib.colors
 from scipy.interpolate import griddata
 from shapely.geometry import LineString
 import geopandas as gpd
+from scipy.interpolate import griddata
+from matplotlib import gridspec
 
 logfunc = lambda e: np.log10(e)
 
@@ -80,7 +82,7 @@ class Geomodel:
 
     def evaluate_structuralmodel(self, mesh, structuralmodel): # Takes the project parameters and model class.         
         #print('   Creating Geomodel (lithology and discretisation arrays) for ', self.scenario, ' ...')
-        
+        self.units = np.array(structuralmodel.strat_names[1:])  
         self.strat_names = structuralmodel.strat_names[1:]
         if self.nlg is None:
             self.nlg = len(self.strat_names)  
@@ -152,7 +154,7 @@ class Geomodel:
             run_time = t1 - t0
             print('Time taken Block 0 (creating xyz array) = ', run_time.total_seconds())
 
-            print('   1. Evaluating structural model...')
+            print('\n   1. Evaluating structural model...')
             t0 = datetime.now()
             self.xyz = xyz  
             print('len(xyz) = ', len(xyz))      
@@ -167,25 +169,11 @@ class Geomodel:
             print('Time taken Block 1 (Evaluate model) = ', run_time.total_seconds())
 
     def create_model_layers(self, mesh, structuralmodel):
-            
-        self.units = np.array(structuralmodel.strat_names[1:])  
 
         if self.vertgrid == 'con' or self.vertgrid == 'con2' : # CREATING DIS AND NPF ARRAYS    
 
-            def start_stop_arr(initial_list): # Function to look down pillar and pick geo bottoms
-                a = np.asarray(initial_list)
-                mask = np.concatenate(([True], a[1:] != a[:-1], [True]))
-                idx = np.flatnonzero(mask)
-                l = np.diff(idx)
-                start = np.repeat(idx[:-1], l)
-                stop = np.repeat(idx[1:]-1, l)
-                return(start, stop)
-            
-            nlay = int((self.z1 - self.z0)/self.res)
-            dz = (self.z1 - self.z0)/nlay # actual resolution
-            
             # ------------------------------------------
-            print('   2. Creating geo model layers...')
+            print('\n   2. Creating geo model layers...')
             t0 = datetime.now()
 
             # Arrays for geo arrays
@@ -194,72 +182,65 @@ class Geomodel:
             thick_geo   = np.zeros((self.nlg, mesh.ncpl), dtype=float) # geo layer thickness
             idomain_geo = np.zeros((self.nlg, mesh.ncpl), dtype=float)      # idomain array for each lithology
             
-            stop_array = np.zeros((self.nlg+1, mesh.ncpl), dtype=float)
-            print('stop_array shape', stop_array .shape )
-            V = self.litho
-            W = V[1:, :] - V[:-1, :] 
-            #W = V[1:, :] - V[:-1, :] 
-            if np.any(W < 0):
-                #print(f'Geology repeats itself {np.sum(W < 0)} times at {np.where(W < 0)}')
-                W[W < 0] = 0 # this is to handle instances where geology goes in reverse order (back to a younger sequence)
-
-            
-            print('nlay = ', nlay)
+            #*********
+           
             print('ncpl = ', mesh.ncpl)
             print('nlg number of geo layers = ', self.nlg)
 
+            # IDOMAIN
             for icpl in range(mesh.ncpl):
-                #print('ICPL = ', icpl)
-                #if icpl == 297:
-                #    print('Pillar lithologies ', V[:,icpl])
-                #    print('V - V ', V[1:, icpl] - V[:-1, icpl])
-
-                # IDOMAIN
-                present = np.unique(V[:,icpl])
+                present = np.unique(self.litho[:,icpl])
                 for p in present:
-                    if p >= 0: # don't include above ground 
+                    if p >= 0 and p < self.nlg: # don't include above ground, or deep geo layers not in flow model
                         idomain_geo[p, icpl] = 1
-                
-                stop = np.array([nlay-1]) # Add the last layer to start with
-                #print('line 225 stop ', stop)
-                for i in range(1,self.nlg): 
+            
+            
+            def make_surfaces(structuralmodel, mesh):
+         
+                surfaces = []
+                for i in range(len(structuralmodel.vals)-1): # Don't create surface for the bottom lithology   
+                    feature = structuralmodel.sequences[i]
+                    vals = [structuralmodel.vals[i]]
+                    #print(f'     \nCreating surface for feature: {feature}, lithid {structuralmodel.lithids[i]}, value: {structuralmodel.vals[i]}')
+                    surface = structuralmodel.model[feature].surfaces(vals)[0]  # Get the first surface for the feature
+                    #print('number of vertices = ', surface.vertices.shape[0])
+                    x = surface.vertices[:,0]
+                    y = surface.vertices[:,1]
+                    z = surface.vertices[:,2]
+
+                    # Filter out rows with NaN or inf values
+                    valid_mask = ~np.isnan(x) & ~np.isnan(y) & ~np.isnan(z) & ~np.isinf(x) & ~np.isinf(y) & ~np.isinf(z)
+                    filtered_points = np.array([x[valid_mask], y[valid_mask]]).T
+                    filtered_z = z[valid_mask]
                     
-                    #idx = np.where(V[1:, icpl] - V[:-1, icpl] == i)[0] # checking if different from row above
-                    idx = np.where(W[:,icpl] == i)[0] # checking if different from row above
-                    # e.g. if i =  3 and idx =  [146 199], then it skips 3 layers TWICE!
-                    if idx.size != 0: # If there returns an index
-                        #print('i = ', i, 'idx = ', idx)
-                        
-                        for id in idx:
-                            #if icpl == 297: print('id = ', id, 'idx = ', idx, 'np.ones(i) = ', np.ones(i))
-                            idx_array = id * np.ones(i)
-                            stop = np.concatenate((stop, idx_array))
-    
-                n = self.nlg+1 - len(stop)# number of pinched out layers at the bottom not yet added to stop array
-                #print('n = ', n)
-                #print('stop  ', stop)
-                m = (nlay-1) * np.ones(n) # this is just accounting for the bottom geo layers that dont exist in pillar
-                stop = np.concatenate((stop, m))
+                    #print('len filtered z ', len(filtered_z), ' i.e. without NaN or inf')
+                    surface = griddata(filtered_points, filtered_z, (mesh.xc, mesh.yc), method='nearest') #'linear'
+                    #print(np.unique(surface, return_counts=True))
 
-                stop = np.sort(stop)
-                #if icpl == 297: print('stop ', stop)     
-                stop_array[:,icpl] = stop
+                    surfaces.append(surface)
+                return surfaces
 
+            surfaces = make_surfaces(structuralmodel, mesh)
 
-            #print('stop_array.shape = ', stop_array.shape)
-            botm_geo = self.z1 - (stop_array + 1)* self.dz
-            botm_geo[:, 0]
-            top_geo = botm_geo[0,:]
-            botm_geo = botm_geo[1:,:]
-            #print('top_geo shape', top_geo.shape)
-            #print('botm_geo', botm_geo.shape)
+            top_geo = surfaces[0]
+
+            if self.nlg == len(structuralmodel.lithids)-1: # Situation when model bottom is z0
+                for i in range(1, self.nlg): # don't include groud level or bottom surface
+                    botm_geo[i-1] = surfaces[i] # Bottom of geological layer
+                    botm_geo[-1] = self.z0 # Bottom of the last geological layer is the model bottom
+            else: # Situation when model bottom is bottom of geo layer
+                for i in range(1, self.nlg+1): # don't include groud level
+                    botm_geo[i-1] = surfaces[i] # Bottom of geological layer
+
+            print('top_geo shape', top_geo.shape)
+            print('botm_geo', botm_geo.shape)
             t1 = datetime.now()
             run_time = t1 - t0
             print('Time taken Block 2 create geomodel layers ', run_time.total_seconds())
 
                            
             # -------------------------------
-            print('   3. Evaluating geo layer thicknesses...')
+            print('\n   3. Evaluating geo layer thicknesses...')
             t0 = datetime.now()
 
             for lay_geo in range(self.nlg):
@@ -280,7 +261,7 @@ class Geomodel:
 #----- CON - CREATE LITH, BOTM AND IDOMAIN ARRAYS (PILLAR METHOD, PICKS UP PINCHED OUT LAYERS) ------#    
         if self.vertgrid == 'con':
 
-            print('   4. Creating flow model layers...')
+            print('\n   4. Creating flow model layers...')
             t0 = datetime.now()
 
             self.nlay   = self.nlg * self.nls # number of model layers = geo layers * sublayers 
@@ -419,7 +400,7 @@ class Geomodel:
             self.ncell_disu = np.count_nonzero(self.cellid_disu != -1)
 
 
-            print('   5. Calculating gradients...')
+            print('\n   5. Calculating gradients...')
             t0 = datetime.now()
 
             if self.transect == False:
@@ -468,6 +449,7 @@ class Geomodel:
         self.vgrid = flopy.discretization.VertexGrid(vertices=mesh.vertices, cell2d=mesh.cell2d, ncpl = mesh.ncpl, 
                                                      top = self.top_geo, botm = self.botm)
 
+        self.zcenters = self.botm + self.thick/2
         t1 = datetime.now()
         run_time = t1 - t0
         print('Time taken Block 5 gradients= ', run_time.total_seconds())
@@ -601,10 +583,6 @@ class Geomodel:
         ax = plt.subplot(111)
         ax.set_aspect('equal')
         ax.set_title('surface geology', size = 10)
-
-        #if mesh.plangrid == 'car': mesh.sg.plot(color = 'black', lw = 0.2) 
-        #if mesh.plangrid == 'tri': mesh.tri.plot(edgecolor='black', lw = 0.2)
-        #if mesh.plangrid == 'vor': mesh.vor.plot(edgecolor='black', lw = 0.2)
 
         mapview = flopy.plot.PlotMapView(modelgrid=self.vgrid, layer = 0, ax = ax)
         
@@ -767,3 +745,19 @@ class Geomodel:
         c = ax.contourf(X, Y, Z, levels = levels, extend = 'both', cmap='coolwarm', alpha = 0.5)
         ax.clabel(c, colors = 'black', inline=True, fontsize=8, fmt="%.0f")
         plt.colorbar(c, ax = ax, shrink = 0.5)
+
+    def plot_surface(self, array, xlim = None, ylim = None): # e.g xlim = [700000, 707500]
+
+        fig = plt.figure(figsize=(7,5))
+        spec = gridspec.GridSpec(nrows=1, ncols=2, width_ratios=[1, 0.05], wspace=0.2)
+
+        ax = fig.add_subplot(spec[0], aspect="equal") #plt.subplot(1, 1, 1, aspect="auto")
+        if xlim: ax.set_xlim(xlim) 
+        if ylim: ax.set_ylim(ylim) 
+            
+        pmv = flopy.plot.PlotMapView(ax = ax, modelgrid=self.vgrid)
+        p = pmv.plot_array(array, alpha = 0.6,)# cmap = cmap, norm = norm)
+        cbar_ax = fig.add_subplot(spec[1])
+        cbar = fig.colorbar(p, cax=cbar_ax, shrink = 0.1)  # Center tick labels
+
+        #plt.savefig('../figures/surface.png')
