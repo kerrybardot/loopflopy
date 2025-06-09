@@ -460,14 +460,21 @@ class Geomodel:
         self.thick.min()
 
         # Save cell centres z value as (lay, icpl) array
-        self.zc = np.zeros((self.nlay, mesh.ncpl))
-        for lay in range(self.nlay):
-            for icpl in range(mesh.ncpl):
-                self.zc[lay, icpl] = self.botm[lay, icpl] + self.thick[lay, icpl]/2
+        self.zc = self.botm + self.thick/2
 
         self.vgrid = flopy.discretization.VertexGrid(vertices=mesh.vertices, cell2d=mesh.cell2d, ncpl = mesh.ncpl, 
                                                      top = self.top_geo, botm = self.botm)
 
+        # Save xyz coordinates for each cell in the model       
+        xyz = []  
+        for lay in range(self.nlay):
+            z_lay = self.zc[lay] # z coordinate for the layer
+            for icpl in range(mesh.ncpl):    
+                x, y = mesh.xcyc[icpl][0], mesh.xcyc[icpl][1]
+                z = z_lay[icpl]
+                xyz.append([x,y,z])
+        self.xyz = xyz
+        
         t1 = datetime.now()
         run_time = t1 - t0
         print('Time taken Block 5 gradients= ', run_time.total_seconds())
@@ -645,7 +652,7 @@ class Geomodel:
 
         #save_contour_lines_to_shapefile
         gdf = gpd.GeoDataFrame(geometry=contour_lines, crs = spatial.epsg)
-        gdf.to_file('../modelfiles/surface_contours.shp', driver='ESRI Shapefile')
+        gdf.to_file('../data/data_shp/geomodel_surface_contours.shp', driver='ESRI Shapefile')
 
     def geomodel_transect_lith(self, structuralmodel, spatial, **kwargs):
         x0 = kwargs.get('x0', spatial.x0)

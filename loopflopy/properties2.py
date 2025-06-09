@@ -13,36 +13,26 @@ class Properties:
     def __init__(self, **kwargs):      
         
         self.data_label = "DataBaseClass"
-
-
-    def make_gdf(self, geomodel, mesh, spatial, df):
+   
+    def make_stochastic_gdf(self, geomodel, mesh, spatial, scalarfield, df, unit):
 
         gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df.Easting, df.Northing), crs=spatial.epsg)
-        
-        gdf['log_kh']  = gdf['kh'].apply(lambda kh: np.log10(kh))  
-        gdf['log_kv']  = gdf['kv'].apply(lambda kv: np.log10(kv))  
-        gdf['log_ss']  = gdf['ss'].apply(lambda ss: np.log10(ss))  
         gdf['icpl']      = gdf['geometry'].apply(lambda point: mesh.gi.intersect(point)["cellids"][0])
-        gdf['cell_xy'] = gdf['icpl'].apply(lambda icpl: (mesh.xcyc[icpl][0], mesh.xcyc[icpl][1]))
-        gdf['geolay']    = gdf['Unit'].apply(lambda Unit: np.where(geomodel.units == Unit)[0][0]) # Find the index of the strat name in the list
+        gdf['cell_xy']   = gdf['icpl'].apply(lambda icpl: (mesh.xcyc[icpl][0], mesh.xcyc[icpl][1]))
+        gdf['unit']      = unit
+        gdf['geolay']    = gdf['unit'].apply(lambda unit: np.where(geomodel.units == unit)[0][0]) # Find the index of the strat name in the list
         gdf['lay']       = gdf['geolay'].apply(lambda geolay: geomodel.nls * geolay + 1) # Bottom layer for 2 sublayers, middle layer for 3 sublayers  ##########################                                                          
         gdf['cell_disv'] = gdf.apply(lambda row: row['icpl'] + row['lay'] * mesh.ncpl, axis=1)  
         gdf['cell_disu'] = gdf.apply(lambda row: utils.disvcell_to_disucell(geomodel, row['cell_disv']), axis=1)  
-        gdf['cell_z']  = gdf.apply(lambda row: geomodel.zc[row['lay'], row['icpl']], axis=1)
+        gdf['cell_z']  = gdf.apply(lambda row: geomodel.zcenters[row['lay'], row['icpl']], axis=1)
+        gdf['sf_z']    = gdf.apply(lambda row: scalarfield[row['lay'], row['icpl']], axis=1)
+        gdf = gdf[gdf['cell_disu'] != -1] # delete pilot points where layer is pinched out
 
-
-        # Calculate sill
-        sills = []
-        for unit in geomodel.units: # for each unit...
-            unit_gdf = gdf[gdf.Unit == unit]
-            sill = np.abs(np.mean(unit_gdf.log_kh.values)) 
-            sills.append(sill)
-            gdf.loc[gdf.Unit == unit, 'sill'] = sill # assign sill to all points in unit
-
-        self.sills = sills
-        self.gdf = gdf[gdf['cell_disu'] != -1] # delete pilot points where layer is pinched out
-
+        return gdf
+    
     def stochasticfieldgeneration(self, 
+                unit,
+                gdf,
                 geomodel, 
                 mesh, 
                 property = 'prop',
@@ -50,15 +40,14 @@ class Properties:
                 return_random=True, # True makes it random with 0 mean and 1 variance, False makes it deterministic
                 CL = 1000., 
                 nugget = 0.05, 
-                rebuild_threshold = 0.1):
+                rebuild_threshold = 0.1,):
 
         ## MAKE AN ARRAY OF X,Y,Z,VAL
         prop_layicpl = 999999 * np.ones((geomodel.nlay, geomodel.ncpl))
 
-
         for geolay, unit in enumerate(geomodel.units): # for each unit...
             print('###### ', unit, '#########\n')
-            gdf = self.gdf[self.gdf.Unit == unit]
+            
             pv = []
 
             for sublay in range(geomodel.nls): # for each sublayer in unit..
@@ -66,13 +55,13 @@ class Properties:
                 
                     lay = geolay * geomodel.nls + sublay # Zero based
                     disvcell = icpl + lay*geomodel.ncpl
-                    
                     x = mesh.xcyc[icpl][0]
                     y = mesh.xcyc[icpl][1]
                     z = geomodel.zcenters[lay, icpl]
 
                     if disvcell in gdf.cell_disv.values and geomodel.idomain[lay, icpl] == 1: # only include cells not pinched out
                         id = gdf.loc[gdf['cell_disv'] == disvcell, 'ID'].values[0]
+                        print(id, disvcell)
                         val = np.log10(gdf.loc[gdf['cell_disv'] == disvcell, property].values)[0]
                         print(id, unit, 'disv_cell', disvcell, 'val', val)
             
@@ -95,7 +84,7 @@ class Properties:
                             nugget = nugget, # value at 0 distance
                             return_random = True, #False is kriging (deterministic), True is stochastoc
                             random_seed = None, 
-                            initial_points=10, # number of points to sample for initial variogram (assuming all points are nan)
+                            initial_points=20, # number of points to sample for initial variogram (assuming all points are nan)
                             unknown_value_flag=np.nan, 
                             anisotropy=anisotropy,
                             rebuild_threshold=rebuild_threshold) # how often to recreate KDTree e.g. every 0.1% of points rebuild KDTree'''
@@ -122,7 +111,9 @@ class Properties:
         setattr(self, f'{property}_disv', 10**prop_disv)
         setattr(self, f'{property}_disu', 10**prop_disu)
     
+    '''
     
+    '''
     
     def kriging(self, 
                 geomodel, 

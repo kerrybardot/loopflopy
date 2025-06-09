@@ -124,5 +124,5 @@ class SurfaceRefinement:
 
             #save_contour_lines_to_shapefile
             gdf = gpd.GeoDataFrame(geometry=contour_lines, crs = project.crs)
-            gdf.to_file('../modelfiles/surface_contours.shp', driver='ESRI Shapefile')
+            gdf.to_file('../data/data_shp/surface_contours.shp', driver='ESRI Shapefile')
             self.gdf = gdf
