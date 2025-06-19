@@ -3,6 +3,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import flopy
+import geopandas as gpd
 from shapely.geometry import LineString,Point,Polygon,MultiPolygon,MultiPoint,shape
 from flopy.discretization import VertexGrid
 from flopy.utils.triangle import Triangle as Triangle
@@ -272,7 +273,7 @@ class Mesh:
             self.vgrid = flopy.discretization.VertexGrid(vertices=self.vertices, cell2d=self.cell2d, ncpl = self.ncpl, nlay = 1)
             self.gi = flopy.utils.GridIntersect(self.vgrid)
     
-    def locate_special_cells(self, spatial):
+    def locate_special_cells(self, spatial, threshold = 1.0):
         
         self.obs_cells = [] 
         self.wel_cells = [] 
@@ -365,7 +366,38 @@ class Mesh:
                     att_name = f"poly_{subgroup}_cells"
                     print(att_name)
                     setattr(self, att_name, cells)
+                    flag += 1
+            
+            if group == 'multipoly':
+                print(dir(self.vgrid))
+                def path_to_polygon(path):
+                    verts = path.vertices # The mesh is not a gdf at this point, but it needs to be to interact with other gdfs as below - create polygon
+                    return Polygon(verts)
+                
+                for i, subgroup in enumerate(subgroups):
+                    self.cell_type.append(f'{group} - {subgroup}') #for each individual shape within the veg group?
+                    att_name = f"{subgroup}_multipoly"
+                    multipoly = getattr(spatial, att_name)
+
+                    apply_threshold = getattr(self, "threshold", threshold) #set a threshold so not EVERY cell that has even a little bit of veg will be 'special'
+                    intersecting_cells = []
+
+                    for idx, cell_path in enumerate(self.vgrid.map_polygons):
+                        cell_geom = path_to_polygon(cell_path)
+                        intersection = cell_geom.intersection(multipoly)
+
+                        if not intersection.is_empty:
+                            overlap_area = intersection.area
+                            cell_area = cell_geom.area
+                            if overlap_area / cell_area >= apply_threshold:
+                                intersecting_cells.append(idx)  # or use row.cellid if available
+
+                    for cell in intersecting_cells:
+                        self.ibd[cell] = flag
                     
+                    att_name = f"{subgroup}_cells"
+                    print(att_name)
+                    setattr(self, att_name, cells)
                     flag += 1
             
     def plot_cell2d(self, spatial, features = None, xlim = None, ylim = None, nodes = False, labels = False):
@@ -499,3 +531,27 @@ class Mesh:
             df = structuralmodel.data
             ax.plot(df.X, df.Y, 'o', ms = 2, color = 'red')
     
+    '''def mesh_to_gdf(self):
+        if self.plangrid == 'vor':
+            vertices = self.vertices
+            cells = self.cell2d
+
+
+            #QAQC help if function isn't working
+            for cell in self.cell2d:
+                print("cell:", cell)
+                vertex_indices = cell[1:]
+                print("vertex indices:", vertex_indices)
+                print("max vertex index:", max(vertex_indices))
+                print("vertices length:", len(vertices))
+                #coords = [vertices[int(i)] for i in vertex_indices]
+
+            polygons = []
+            for cell in cells:
+                nverts = int(cell[3])
+                vertex_indices = cell[4:4 + nverts]
+                coords = [vertices[int(i)] for i in vertex_indices]
+                polygon = Polygon(coords)
+                polygons.append(polygon)
+
+            self.gdf = gpd.GeoDataFrame(geometry=polygons)'''
