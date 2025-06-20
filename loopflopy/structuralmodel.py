@@ -267,3 +267,29 @@ class StructuralModel:
         c = ax.contourf(X, Y, Z, levels = levels, extend = 'both', cmap='coolwarm', alpha = 0.5)
         ax.clabel(c, colors = 'black', inline=True, fontsize=8, fmt="%.0f")
         plt.colorbar(c, ax = ax, shrink = 0.5)
+
+
+    def make_surfaces(self):
+
+        surfaces = []
+        for i in range(len(self.vals)-1): # Don't create surface for the bottom lithology   
+            feature =self.sequences[i]
+            vals = [self.vals[i]]
+            print(f'     \nCreating surface for feature: {feature}, lithid {self.lithids[i]}, value: {self.vals[i]}')
+            surface = self.model[feature].surfaces(vals)[0]  # Get the first surface for the feature
+            print('number of vertices = ', surface.vertices.shape[0])
+            x = surface.vertices[:,0]
+            y = surface.vertices[:,1]
+            z = surface.vertices[:,2]
+
+            # Filter out rows with NaN or inf values
+            valid_mask = ~np.isnan(x) & ~np.isnan(y) & ~np.isnan(z) & ~np.isinf(x) & ~np.isinf(y) & ~np.isinf(z)
+            filtered_points = np.array([x[valid_mask], y[valid_mask]]).T
+            filtered_z = z[valid_mask]
+            
+            #print('len filtered z ', len(filtered_z), ' i.e. without NaN or inf')
+            surface = griddata(filtered_points, filtered_z, (self.mesh.xc, self.mesh.yc), method='nearest') #'linear'
+            #print(np.unique(surface, return_counts=True))
+
+            surfaces.append(surface)
+        self.surfaces = surfaces

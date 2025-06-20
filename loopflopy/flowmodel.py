@@ -89,6 +89,7 @@ class Flowmodel:
          
         dv2d = Disv2Disu(self.mesh.vertices, self.mesh.cell2d, self.geomodel.top_geo, self.geomodel.botm, staggered=self.staggered, disv_idomain = self.geomodel.idomain,)
         disu_gridprops = dv2d.get_gridprops_disu6()
+        self.disu_gridprops = disu_gridprops.copy()  # Save for later use
         disu = flopy.mf6.ModflowGwfdisu(gwf, **disu_gridprops) # This is the flow package
         # -------------- NPF -------------------------
 
@@ -138,13 +139,13 @@ class Flowmodel:
             
         # -------------- EVTA-------------------------
         if self.evta:
-            fixed_cell, surface, depth, rate = self.data.evta_pars
+
             evta = flopy.mf6.ModflowGwfevta(gwf,
-                                           surface = surface,
-                                           depth = depth,
-                                           rate = rate,
-                                           save_flows = True,
-                                           fixed_cell =fixed_cell)  
+                                            readasarrays = False,
+                                            timearrayseries = self.data.evta_rec,
+                                            fixed_cell = False, # Not sure!?!
+                                            save_flows=True,
+                                            )  
         
         # -------------- OBS -------------------------
         if self.obs: 

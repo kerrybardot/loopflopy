@@ -35,7 +35,7 @@ class SurfaceRefinement:
         geomodel = Geomodel(scenario, vertgrid, z0, z1, nls = 1, res = 1)#, max_thick = 100. * np.ones((7)))
 
         geomodel.evaluate_structuralmodel(mesh, structuralmodel)
-        geomodel.create_model_layers(mesh, structuralmodel)
+        geomodel.create_model_layers(mesh, structuralmodel, structuralmodel.topo)
         #geomodel.create_lith_dis_arrays(mesh, structuralmodel)
         geomodel.vgrid = flopy.discretization.VertexGrid(vertices=mesh.vertices, cell2d=mesh.cell2d, ncpl = mesh.ncpl, 
                                                          top = geomodel.top_geo, botm = geomodel.botm)
@@ -47,7 +47,7 @@ class SurfaceRefinement:
         self.mesh = mesh
 
     # Function to find interfaces and generate nodes
-    def generate_interface_nodes(self, spatial):
+    '''def generate_interface_nodes(self, spatial):
         raster = self.raster
 
         nodes = []
@@ -69,14 +69,60 @@ class SurfaceRefinement:
         self.nodes = nodes
         gdf = gpd.GeoDataFrame(crs = spatial.epsg, geometry=nodes) # Create a GeoDataFrame from the nodes
         gdf.to_file("../modelfiles/interface_nodes.shp") # Save the nodes as a shapefile
-        spatial.interface_nodes = list(zip(gdf.geometry.x, gdf.geometry.y)) # Save the nodes as a list of tuples
+        spatial.interface_nodes = list(zip(gdf.geometry.x, gdf.geometry.y)) # Save the nodes as a list of tuples'''
     
     def plot_surface_refinement(self, spatial, structuralmodel, y0, y1):
         self.geomodel.geomodel_plan_lith(spatial, self.mesh, structuralmodel, y0 = y0, y1 = y1)
         self.geomodel.geomodel_transect_lith(structuralmodel, spatial, y0 = y0, y1 = y1)#, z0 = -900, z1 = -2000) 
 
 
-    def surface_contours(self, project, structuralmodel, plot_datapoints = False, **kwargs):
+    def array_intersection(self, project, structuralmodel, array1, array2, plot_datapoints = False, **kwargs): # This contours using the DEM with a surface
+
+            thickness = array1 - array2
+
+            fig = plt.figure(figsize = (10, 6))
+            ax = plt.subplot(111)
+            ax.set_aspect('equal')
+            ax.set_title('surface geology', size = 10)
+            ax.set_xlabel('x (m)', size = 10)
+            ax.set_ylabel('y (m)', size = 10)
+
+            if plot_datapoints:
+                ax.plot(structuralmodel.data.X, structuralmodel.data.Y, 'o', ms = 1, color = 'red')
+            
+            mapview = flopy.plot.PlotMapView(modelgrid=self.geomodel.vgrid, layer = 0, ax = ax)
+            
+            plan = mapview.plot_array(thickness, 
+                                      cmap='Spectral',
+                                      alpha=0.8, ax = ax)
+            
+            # Contours
+            X, Y = self.mesh.xcenters, self.mesh.ycenters
+            
+            Z = thickness.reshape((self.mesh.nrow, self.mesh.ncol))
+            levels = np.arange(0, 999999)
+            contour = ax.contour(X, Y, Z, 
+                                 levels = [0.], 
+                                 extend = 'both', colors = 'Black', 
+                                 linewidths=1., linestyles = 'solid')
+            
+            cbar = plt.colorbar(plan, shrink = 1.0)
+            plt.tight_layout()  
+            plt.show()
+
+            # Extract contour lines
+            contour_lines = []
+            for collection in contour.collections:
+                for path in collection.get_paths():
+                    v = path.vertices
+                    contour_lines.append(LineString(v))
+
+            #save_contour_lines_to_shapefile
+            gdf = gpd.GeoDataFrame(geometry=contour_lines, crs = project.crs)
+            gdf.to_file('../data/data_shp/intersection_contour.shp', driver='ESRI Shapefile')
+            self.gdf = gdf
+
+    def surface_contours(self, project, structuralmodel, plot_datapoints = False, **kwargs): # This contours surface lithology using the geomodel's surface lithology
 
             fig = plt.figure(figsize = (10, 6))
             ax = plt.subplot(111)

@@ -166,12 +166,13 @@ class Geomodel:
             run_time = t1 - t0
             print('Time taken Block 1 (Evaluate model) = ', run_time.total_seconds())
 
-    def create_model_layers(self, mesh, structuralmodel):
+    def create_model_layers(self, mesh, structuralmodel, dem):
             
         self.units = np.array(structuralmodel.strat_names[1:])  
 
         if self.vertgrid == 'con' or self.vertgrid == 'con2' : # CREATING DIS AND NPF ARRAYS    
 
+            
             def start_stop_arr(initial_list): # Function to look down pillar and pick geo bottoms
                 a = np.asarray(initial_list)
                 mask = np.concatenate(([True], a[1:] != a[:-1], [True]))
@@ -249,7 +250,10 @@ class Geomodel:
             #print('stop_array.shape = ', stop_array.shape)
             botm_geo = self.z1 - (stop_array + 1)* self.dz
             botm_geo[:, 0]
-            top_geo = botm_geo[0,:]
+            
+            #top_geo = botm_geo[0,:] # replace top of geomodel with dem
+
+            top_geo = dem
             botm_geo = botm_geo[1:,:]
             #print('top_geo shape', top_geo.shape)
             #print('botm_geo', botm_geo.shape)

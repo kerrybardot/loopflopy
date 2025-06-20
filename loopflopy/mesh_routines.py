@@ -6,7 +6,26 @@ import math
 import flopy
 from collections import OrderedDict
 
-def create_structured_mesh(bbox, ncol, nrow):
+
+def create_structured_grid(bbox, ncol, nrow, crs):
+    x0 = bbox[0][0]
+    y0 = bbox[0][1]
+    x1 = bbox[1][0]
+    y1 = bbox[1][1]
+
+    delx = (x1 - x0)/ncol
+    dely = (y1 - y0)/nrow
+    delr = delx * np.ones(ncol, dtype=float)
+    delc = dely * np.ones(nrow, dtype=float)
+    top  = np.ones((nrow, ncol), dtype=float)
+    botm = np.zeros((1, nrow, ncol), dtype=float)
+
+    sg = flopy.discretization.StructuredGrid(delr=delr, delc=delc, top=top, botm=botm, 
+                                             xoff = x0, yoff = y0, crs = crs)
+
+    return sg
+
+def create_structured_mesh(bbox, ncol, nrow, crs=None):
 
     from loopflopy.mesh import Mesh
     mesh = Mesh(plangrid = 'car') 
@@ -58,13 +77,15 @@ def create_structured_mesh(bbox, ncol, nrow):
     mesh.sg = sg    
     mesh.cell2d = cell2d
     mesh.xcyc = xcyc
+    mesh.xc, mesh.yc = list(zip(*mesh.xcyc))
     mesh.vertices = vertices
     mesh.ncpl = len(cell2d)
     
     mesh.vgrid = flopy.discretization.VertexGrid(vertices=vertices, 
                                                  cell2d=cell2d, 
                                                  ncpl = mesh.ncpl, 
-                                                 nlay = 1)
+                                                 nlay = 1,
+                                                 crs = crs)
     mesh.gi = flopy.utils.GridIntersect(mesh.vgrid)
     return mesh
 

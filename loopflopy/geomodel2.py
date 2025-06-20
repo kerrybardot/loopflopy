@@ -168,7 +168,7 @@ class Geomodel:
             run_time = t1 - t0
             print('Time taken Block 1 (Evaluate model) = ', run_time.total_seconds())
 
-    def create_model_layers(self, mesh, structuralmodel):
+    def create_model_layers(self, mesh, structuralmodel, dem):
 
         if self.vertgrid == 'con' or self.vertgrid == 'con2' : # CREATING DIS AND NPF ARRAYS    
 
@@ -180,7 +180,7 @@ class Geomodel:
             top_geo     = 9999 * np.ones((mesh.ncpl), dtype=float) # empty array to fill in ground surface
             botm_geo    = np.zeros((self.nlg, mesh.ncpl), dtype=float) # bottom elevation of each geological layer
             thick_geo   = np.zeros((self.nlg, mesh.ncpl), dtype=float) # geo layer thickness
-            idomain_geo = np.zeros((self.nlg, mesh.ncpl), dtype=float)      # idomain array for each lithology
+            idomain_geo = np.ones((self.nlg, mesh.ncpl), dtype=float)      # idomain array for each lithology
             
             #*********
            
@@ -220,9 +220,9 @@ class Geomodel:
                     surfaces.append(surface)
                 return surfaces
 
-            surfaces = make_surfaces(structuralmodel, mesh)
+            surfaces = make_surfaces(structuralmodel, mesh) # round surface is surface 0!
 
-            top_geo = surfaces[0]
+            top_geo = dem.topo # Make top of geomodel equal to DEM topography
 
             if self.nlg == len(structuralmodel.lithids)-1: # Situation when model bottom is z0
                 for i in range(1, self.nlg): # don't include groud level or bottom surface
@@ -234,6 +234,23 @@ class Geomodel:
 
             print('top_geo shape', top_geo.shape)
             print('botm_geo', botm_geo.shape)
+            
+            # Here we make sure that the bottom of the first layer is below the ground surface
+            # And if not, we make it equal to the ground surface!
+            # This is a bit cheating, as if the top layer is not there, I've made it 1m thick
+            # Only because I'm not sure my code can cope with pinched out layers in the top layer - to be fixed later!
+            new_array = np.where(top_geo - botm_geo[0] < 0, top_geo-1, botm_geo[0]) 
+            botm_geo[0] = new_array
+            
+            # Here we need to flag where there are pinched out cells in the top layer.
+            new_array = np.where(top_geo - botm_geo[0] <= 0, 0, 1) # if the botm of the first layer is above groundsurface, make idomain 0
+            idomain_geo[0] = new_array
+
+            # Here we need to flag where there are pinched out cells for all other layers.
+            for i in range(1,self.nlg):
+                new_array = np.where(botm_geo[i-1] - botm_geo[i] <= 0, 0, 1)
+                idomain_geo[i] = new_array # if the top of the layer is above the bottom of the layer, make idomain 0
+
             t1 = datetime.now()
             run_time = t1 - t0
             print('Time taken Block 2 create geomodel layers ', run_time.total_seconds())
@@ -252,6 +269,7 @@ class Geomodel:
             self.top_geo = top_geo
             self.botm_geo = botm_geo  
             self.thick_geo = thick_geo    
+            print('min thick ', np.min(self.thick_geo), 'max thick ', np.max(self.thick_geo))
             self.idomain_geo = idomain_geo 
             t1 = datetime.now()
             run_time = t1 - t0
@@ -433,14 +451,10 @@ class Geomodel:
             self.ang2  = reshape_loop2mf(np.asarray(ang2), self.botm.shape[0], self.botm.shape[1])
             
         self.nnodes_div = len(self.botm.flatten())   
-
-        # Save model layer thicknesses as (lay, icpl) array
         self.thick = np.zeros((self.nlay, mesh.ncpl))
         self.thick[0,:] = self.top_geo - self.botm[0]
         self.thick[1:-1,:] = self.botm[0:-2] - self.botm[1:-1]
         self.thick.min()
-
-        # Save cell centres z value as (lay, icpl) array
         self.zc = self.botm + self.thick/2
 
         self.vgrid = flopy.discretization.VertexGrid(vertices=mesh.vertices, cell2d=mesh.cell2d, ncpl = mesh.ncpl, 

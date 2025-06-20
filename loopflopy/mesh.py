@@ -195,6 +195,7 @@ class Mesh:
             self.cell2d = tri.get_cell2d()     # cell info: id,x,y,nc,c1,c2,c3 (list of lists)
             self.vertices = tri.get_vertices()
             self.xcyc = tri.get_xcyc()
+            self.xc, self.yc = list(zip(*self.xcyc))
             self.ncpl = len(self.cell2d)
             self.idomain = np.ones((self.ncpl))            
             self.vgrid = flopy.discretization.VertexGrid(vertices=self.vertices, cell2d=self.cell2d, ncpl = self.ncpl, nlay = 1)
