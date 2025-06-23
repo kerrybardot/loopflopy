@@ -56,6 +56,10 @@ def prepare_strat_column(structuralmodel):
     structuralmodel.strat_names = strat_names
     structuralmodel.cmap = cmap
     structuralmodel.norm = norm
+    structuralmodel.sequence = sequence
+    structuralmodel.lithids = lithids
+    structuralmodel.sequences = sequences
+    structuralmodel.vals = vals
     
 def prepare_geodata(structuralmodel, spatial, extent = None, Fault = True):  
 

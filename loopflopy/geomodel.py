@@ -253,7 +253,7 @@ class Geomodel:
             
             #top_geo = botm_geo[0,:] # replace top of geomodel with dem
 
-            top_geo = dem
+            top_geo = dem.topo
             botm_geo = botm_geo[1:,:]
             #print('top_geo shape', top_geo.shape)
             #print('botm_geo', botm_geo.shape)

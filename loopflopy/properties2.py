@@ -17,6 +17,8 @@ class Properties:
     def make_stochastic_gdf(self, geomodel, mesh, spatial, scalarfield, df, unit):
 
         gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df.Easting, df.Northing), crs=spatial.epsg)
+        gdf['prop_mean']  = 0.
+        gdf['prop_var']   = 1.
         gdf['icpl']      = gdf['geometry'].apply(lambda point: mesh.gi.intersect(point)["cellids"][0])
         gdf['cell_xy']   = gdf['icpl'].apply(lambda icpl: (mesh.xcyc[icpl][0], mesh.xcyc[icpl][1]))
         gdf['unit']      = unit
@@ -24,7 +26,7 @@ class Properties:
         gdf['lay']       = gdf['geolay'].apply(lambda geolay: geomodel.nls * geolay + 1) # Bottom layer for 2 sublayers, middle layer for 3 sublayers  ##########################                                                          
         gdf['cell_disv'] = gdf.apply(lambda row: row['icpl'] + row['lay'] * mesh.ncpl, axis=1)  
         gdf['cell_disu'] = gdf.apply(lambda row: utils.disvcell_to_disucell(geomodel, row['cell_disv']), axis=1)  
-        gdf['cell_z']  = gdf.apply(lambda row: geomodel.zcenters[row['lay'], row['icpl']], axis=1)
+        gdf['cell_z']  = gdf.apply(lambda row: geomodel.zc[row['lay'], row['icpl']], axis=1)
         gdf['sf_z']    = gdf.apply(lambda row: scalarfield[row['lay'], row['icpl']], axis=1)
         gdf = gdf[gdf['cell_disu'] != -1] # delete pilot points where layer is pinched out
 
@@ -57,12 +59,13 @@ class Properties:
                     disvcell = icpl + lay*geomodel.ncpl
                     x = mesh.xcyc[icpl][0]
                     y = mesh.xcyc[icpl][1]
-                    z = geomodel.zcenters[lay, icpl]
+                    z = geomodel.zc[lay, icpl]
 
                     if disvcell in gdf.cell_disv.values and geomodel.idomain[lay, icpl] == 1: # only include cells not pinched out
                         id = gdf.loc[gdf['cell_disv'] == disvcell, 'ID'].values[0]
                         print(id, disvcell)
-                        val = np.log10(gdf.loc[gdf['cell_disv'] == disvcell, property].values)[0]
+                        val = 0.
+                        #val = np.log10(gdf.loc[gdf['cell_disv'] == disvcell, property].values)[0]
                         print(id, unit, 'disv_cell', disvcell, 'val', val)
             
                     else:
@@ -142,7 +145,7 @@ class Properties:
                     
                     x = mesh.xcyc[icpl][0]
                     y = mesh.xcyc[icpl][1]
-                    z = geomodel.zcenters[lay, icpl]
+                    z = geomodel.zc[lay, icpl]
 
                     if disvcell in gdf.cell_disv.values and geomodel.idomain[lay, icpl] == 1: # only include cells not pinched out
                         id = gdf.loc[gdf['cell_disv'] == disvcell, 'ID'].values[0]

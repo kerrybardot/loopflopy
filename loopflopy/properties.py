@@ -69,7 +69,7 @@ class Properties:
                     
                     x = mesh.xcyc[icpl][0]
                     y = mesh.xcyc[icpl][1]
-                    z = geomodel.zcenters[lay, icpl]
+                    z = geomodel.zc[lay, icpl]
 
                     if disvcell in gdf.cell_disv.values and geomodel.idomain[lay, icpl] == 1: # only include cells not pinched out
                         id = gdf.loc[gdf['cell_disv'] == disvcell, 'ID'].values[0]
@@ -151,7 +151,7 @@ class Properties:
                     
                     x = mesh.xcyc[icpl][0]
                     y = mesh.xcyc[icpl][1]
-                    z = geomodel.zcenters[lay, icpl]
+                    z = geomodel.zc[lay, icpl]
 
                     if disvcell in gdf.cell_disv.values and geomodel.idomain[lay, icpl] == 1: # only include cells not pinched out
                         id = gdf.loc[gdf['cell_disv'] == disvcell, 'ID'].values[0]

@@ -181,8 +181,6 @@ class Geomodel:
             botm_geo    = np.zeros((self.nlg, mesh.ncpl), dtype=float) # bottom elevation of each geological layer
             thick_geo   = np.zeros((self.nlg, mesh.ncpl), dtype=float) # geo layer thickness
             idomain_geo = np.ones((self.nlg, mesh.ncpl), dtype=float)      # idomain array for each lithology
-            
-            #*********
            
             print('ncpl = ', mesh.ncpl)
             print('nlg number of geo layers = ', self.nlg)
@@ -197,13 +195,16 @@ class Geomodel:
             
             def make_surfaces(structuralmodel, mesh):
          
+                # This loop is for each LITHOLOGY
+                print(structuralmodel.model.bounding_box.nsteps)
+
                 surfaces = []
                 for i in range(len(structuralmodel.vals)-1): # Don't create surface for the bottom lithology   
                     feature = structuralmodel.sequences[i]
                     vals = [structuralmodel.vals[i]]
-                    #print(f'     \nCreating surface for feature: {feature}, lithid {structuralmodel.lithids[i]}, value: {structuralmodel.vals[i]}')
+                    print(f'     \nCreating surface for feature: {feature}, lithid {structuralmodel.lithids[i]}, value: {structuralmodel.vals[i]}')
                     surface = structuralmodel.model[feature].surfaces(vals)[0]  # Get the first surface for the feature
-                    #print('number of vertices = ', surface.vertices.shape[0])
+                    print('number of vertices = ', surface.vertices.shape[0])
                     x = surface.vertices[:,0]
                     y = surface.vertices[:,1]
                     z = surface.vertices[:,2]
@@ -213,9 +214,9 @@ class Geomodel:
                     filtered_points = np.array([x[valid_mask], y[valid_mask]]).T
                     filtered_z = z[valid_mask]
                     
-                    #print('len filtered z ', len(filtered_z), ' i.e. without NaN or inf')
-                    surface = griddata(filtered_points, filtered_z, (mesh.xc, mesh.yc), method='nearest') #'linear'
-                    #print(np.unique(surface, return_counts=True))
+                    print('len filtered z ', len(filtered_z), ' i.e. without NaN or inf')
+                    surface = griddata(filtered_points, filtered_z, (mesh.xc, mesh.yc), method='nearest')#'linear', fill_value=-1)
+                    print(np.unique(surface, return_counts=True))
 
                     surfaces.append(surface)
                 return surfaces
