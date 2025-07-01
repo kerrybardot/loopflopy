@@ -137,15 +137,16 @@ class Flowmodel:
                                                            maxbound = len(self.data.rch_rec),
                                                            stress_period_data = self.data.rch_rec,)          
             
-        # -------------- EVTA-------------------------
-        if self.evta:
+        # -------------- EVT-------------------------
+        if self.evt:
 
-            evta = flopy.mf6.ModflowGwfevta(gwf,
-                                            readasarrays = False,
-                                            timearrayseries = self.data.evta_rec,
-                                            fixed_cell = False, # Not sure!?!
-                                            save_flows=True,
-                                            )  
+            evt = flopy.mf6.modflow.mfgwfevt.ModflowGwfevt(gwf,
+                                  print_input=True,
+                                  print_flows=True,
+                                  save_flows=True,
+                                  fixed_cell=True, #If True, ET does not shift to underlying active cell if the specified one is inactive
+                                  pname='EVT',
+                                  stress_period_data= self.data.evt_rec)
         
         # -------------- OBS -------------------------
         if self.obs: 
