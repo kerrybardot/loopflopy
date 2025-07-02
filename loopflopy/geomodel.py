@@ -166,7 +166,7 @@ class Geomodel:
             run_time = t1 - t0
             print('Time taken Block 1 (Evaluate model) = ', run_time.total_seconds())
 
-    def create_model_layers(self, mesh, structuralmodel, dem):
+    def create_model_layers(self, mesh, structuralmodel, surface):
             
         self.units = np.array(structuralmodel.strat_names[1:])  
 
@@ -253,7 +253,7 @@ class Geomodel:
             
             #top_geo = botm_geo[0,:] # replace top of geomodel with dem
 
-            top_geo = dem.topo
+            top_geo = surface
             botm_geo = botm_geo[1:,:]
             #print('top_geo shape', top_geo.shape)
             #print('botm_geo', botm_geo.shape)

@@ -35,7 +35,8 @@ class SurfaceRefinement:
         geomodel = Geomodel(scenario, vertgrid, z0, z1, nls = 1, res = 1)#, max_thick = 100. * np.ones((7)))
 
         geomodel.evaluate_structuralmodel(mesh, structuralmodel)
-        geomodel.create_model_layers(mesh, structuralmodel, structuralmodel.topo)
+        surface = structuralmodel.topo
+        geomodel.create_model_layers(mesh, structuralmodel, surface)
         #geomodel.create_lith_dis_arrays(mesh, structuralmodel)
         geomodel.vgrid = flopy.discretization.VertexGrid(vertices=mesh.vertices, cell2d=mesh.cell2d, ncpl = mesh.ncpl, 
                                                          top = geomodel.top_geo, botm = geomodel.botm)
