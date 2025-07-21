@@ -78,7 +78,7 @@ def geo_bores(spatial):
     gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df.Easting, df.Northing), crs=spatial.epsg)
     gdf = gpd.clip(gdf, spatial.model_boundary_poly).reset_index(drop=True)
     spatial.geobore_gdf = gdf
-    spatial.idgeobores = list(gdf.ID)
+    spatial.idgeobores = list(gdf.id)
     spatial.xygeobores = list(zip(gdf.Easting, gdf.Northing))
     spatial.nobs = len(spatial.xygeobores)
     
@@ -87,7 +87,7 @@ def obs_bores(spatial):
     gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df.Easting, df.Northing), crs=spatial.epsg)
     gdf = gpd.clip(gdf, spatial.model_boundary_poly).reset_index(drop=True)
     spatial.obsbore_gdf = gdf
-    spatial.idobsbores = list(gdf.ID)
+    spatial.idobsbores = list(gdf.id)
     spatial.xyobsbores = list(zip(gdf.Easting, gdf.Northing))
     spatial.nobs = len(spatial.xyobsbores)
     
@@ -96,7 +96,7 @@ def pump_bores(spatial):
     gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df.Easting, df.Northing), crs=spatial.epsg)
     gdf = gpd.clip(gdf, spatial.model_boundary_poly).reset_index(drop=True)
     spatial.pumpbore_gdf = gdf
-    spatial.idpumpbores = list(gdf.ID)
+    spatial.idpumpbores = list(gdf.id)
     spatial.xypumpbores = list(zip(gdf.Easting, gdf.Northing))
     spatial.npump = len(spatial.xypumpbores)
 
@@ -134,7 +134,7 @@ def faults(spatial):
     spatial.faults_gdf = faults_gdf   
     spatial.fault_nodes = fault_nodes
    
-def plot_spatial(spatial, extent = None):    # extent[[x0,x1], [y0,y1]]
+'''def plot_spatial(spatial, extent = None):    # extent[[x0,x1], [y0,y1]]
     
     fig, ax = plt.subplots(figsize = (7,7))
     ax.set_title('Example spatial files')
@@ -157,10 +157,81 @@ def plot_spatial(spatial, extent = None):    # extent[[x0,x1], [y0,y1]]
     spatial.pumpbore_gdf.plot(ax=ax, markersize = 12, color = 'red', zorder=2)
     spatial.geobore_gdf.plot(ax=ax, markersize = 12, color = 'green', zorder=2)
 
-    for x, y, label in zip(spatial.obsbore_gdf.geometry.x, spatial.obsbore_gdf.geometry.y, spatial.obsbore_gdf.ID):
+    for x, y, label in zip(spatial.obsbore_gdf.geometry.x, spatial.obsbore_gdf.geometry.y, spatial.obsbore_gdf.id):
         ax.annotate(label, xy=(x, y), xytext=(2, 2), size = 7, textcoords="offset points")
-    for x, y, label in zip(spatial.pumpbore_gdf.geometry.x, spatial.pumpbore_gdf.geometry.y, spatial.pumpbore_gdf.ID):
+    for x, y, label in zip(spatial.pumpbore_gdf.geometry.x, spatial.pumpbore_gdf.geometry.y, spatial.pumpbore_gdf.id):
         ax.annotate(label, xy=(x, y), xytext=(2, 2), size = 10, textcoords="offset points")
+
+    plt.savefig('../figures/spatial.png')'''
+
+def plot_spatial(spatial, fault = True, 
+                 boundaries = True, 
+                 lake = True,
+                 pilotpoints = False,
+                 obsbores = True, 
+                 geobores = True, 
+                 controlpoints = False,
+                 pumpbores = True, 
+                 xsections = False, 
+                 extent = None):    # extent[[x0,x1], [y0,y1]]
+    
+    fig, ax = plt.subplots(figsize = (7,7))
+    ax.set_title('Example spatial files')
+       
+    x, y = spatial.model_boundary_poly.exterior.xy
+    ax.plot(x, y, '-o', ms = 2, lw = 1, color='black')
+    x, y = spatial.inner_boundary_poly.exterior.xy
+    ax.plot(x, y, '-o', ms = 2, lw = 0.5, color='black')
+    
+    if extent: 
+        ax.set_xlim(extent[0][0], extent[0][1])
+        ax.set_ylim(extent[1][0], extent[1][1])
+
+    if xsections: # [[(355000, 6530000),(400000, 6540000)],[(365000, 6510000),(400000, 6525000)]]
+        for i, xs in enumerate(spatial.xsections):
+            x0, y0 = xs[0][0], xs[0][1]
+            x1, y1 = xs[1][0], xs[1][1]
+            ax.plot([x0,x1],[y0,y1], 'o-', ms = 2, lw = 1, color='black')
+            name = spatial.xsection_names[i]
+            ax.annotate(name, xy=(x0-1000, y0), xytext=(2, 2), size = 10, textcoords="offset points")
+
+    if fault:
+        spatial.faults_gdf.plot(ax=ax, markersize = 5, color = 'lightblue', zorder=2)
+        for node in spatial.fault_nodes: 
+            ax.plot(node[0], node[1], 'o', ms = 3, color = 'lightblue', zorder=2)
+    
+    if boundaries:
+        spatial.chd_east_gdf.plot(ax=ax, markersize = 12, color = 'red', zorder=2)
+        spatial.chd_west_gdf.plot(ax=ax, markersize = 12, color = 'red', zorder=2)
+    
+    if geobores:
+        gdf = spatial.geobore_gdf[spatial.geobore_gdf.Data_type == 'Raw']
+        gdf.plot(ax=ax, markersize = 12, color = 'green', zorder=2)
+        for x, y, label in zip(gdf.geometry.x, gdf.geometry.y, gdf.id):
+            ax.annotate(label, xy=(x, y), xytext=(2, 2), size = 10, color = 'green', textcoords="offset points")
+
+    if controlpoints:
+        gdf = spatial.geobore_gdf[spatial.geobore_gdf.Data_type == 'Control']
+        gdf.plot(ax=ax, markersize = 12, color = 'purple', zorder=2)
+        for x, y, label in zip(gdf.geometry.x, gdf.geometry.y, gdf.id):
+            ax.annotate(label, xy=(x, y), xytext=(2, 2), size = 10, color = 'purple', textcoords="offset points")
+
+    if obsbores:
+        spatial.obsbore_gdf.plot(ax=ax, markersize = 5, color = 'blue', zorder=2)
+        for x, y, label in zip(spatial.obsbore_gdf.geometry.x, spatial.obsbore_gdf.geometry.y, spatial.obsbore_gdf.id):
+            ax.annotate(label, xy=(x, y), xytext=(2, 2), size = 7, color = 'blue', textcoords="offset points")
+
+    if pilotpoints:
+        if hasattr(spatial, 'pilotpoint_gdf'):
+            gdf = spatial.pilotpoint_gdf[spatial.pilotpoint_gdf.Unit == 'TQ']
+            gdf.plot(ax=ax, markersize = 5, color = 'red', zorder=2)
+            for x, y, label in zip(gdf.geometry.x, gdf.geometry.y, gdf.id):
+                ax.annotate(label, xy=(x, y), xytext=(2, 2), size = 7, color = 'red', textcoords="offset points")
+
+    if pumpbores:
+        spatial.pumpbore_gdf.plot(ax=ax, markersize = 12, color = 'black', zorder=2)
+        for x, y, label in zip(spatial.pumpbore_gdf.geometry.x, spatial.pumpbore_gdf.geometry.y, spatial.pumpbore_gdf.id):
+            ax.annotate(label, xy=(x, y), xytext=(2, 2), size = 10, textcoords="offset points")
 
     plt.savefig('../figures/spatial.png')
     

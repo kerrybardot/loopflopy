@@ -1,46 +1,20 @@
 import pandas as pd
 from shapely.geometry import LineString,Point,Polygon,MultiPolygon,shape
 import matplotlib.pyplot as plt
+import geopandas as gpd
+import numpy as np
+import loopflopy.utils as utils
+import math
 
-
-# Now we have git extra bore details from WIR, we can groundlevel and well screens to our dataframe
+# Now we have got extra bore details from WIR, we can groundlevel and well screens to our dataframe
 def make_df():
     # Add GL to main df
-    df = pd.read_excel('../data/bore_data.xlsx', sheet_name='obs_bores')
+    df = pd.read_excel('../data/example_data.xlsx', sheet_name='obs_bores')
     df = df.drop(columns=['Depth From/To (mbGL)'])
     df = df.rename(columns={'Site Short Name': 'ID'})
     df_boredetails = df
     return df_boredetails 
 
-# Now we have bore details, we can add Water Level observations to our dataframe
-def add_WL_obs(df_boredetails):
-    # Import water level data from WIR
-    WL = pd.read_excel('../data/waterlevel_data.xlsx')
-
-    # Filter based on date and variable name
-    WL = WL[WL['Collect Date'] > '2005-01-01']
-    start_date = '2005-01-01'
-    df_filtered = WL[
-                    (WL['Collect Date'] >= start_date) & 
-                    (WL['Variable Name'] == 'Water level (AHD) (m)')
-                    ]
-
-    # Add ID, screened aquifer to main df
-    df_obs = pd.merge(df_boredetails, df_filtered, on='Site Ref', how='left')
-    df_obs = df_obs[['ID', 'Site Ref', 'Collect Date', 'Aquifer Name', 'Reading Value',]]
-
-    df_boredetails['min_WL'] = None
-    df_boredetails['max_WL'] = None
-    df_boredetails['mean_WL'] = None
-
-    bores = df_obs['Site Ref'].unique()
-    for bore in bores:
-        df = df_obs[df_obs['Site Ref'] == bore]
-        df_boredetails.loc[df_boredetails['Site Ref'] == bore, 'min_WL'] = df['Reading Value'].min()
-        df_boredetails.loc[df_boredetails['Site Ref'] == bore, 'max_WL'] = df['Reading Value'].max()
-        df_boredetails.loc[df_boredetails['Site Ref'] == bore, 'mean_WL'] = df['Reading Value'].mean()
-
-    return (df_boredetails, df_obs)
 
 def plot_hydrographs(df_obs):
     # Plot water levels - Yarragadee Aquifer
@@ -51,3 +25,53 @@ def plot_hydrographs(df_obs):
         df = yarr_df[yarr_df['Site Ref'] == bore]
         plt.plot(df['Collect Date'], df['Reading Value'], label = df['ID'].iloc[0])
     plt.legend(loc = 'upper left',fontsize = 'small', markerscale=0.5)
+
+def make_obs_gdf(df, geomodel, mesh, spatial):
+    
+    df = df.rename(columns={'Easting': 'x', 'Northing': 'y'})
+    gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df.x, df.y), crs=spatial.epsg)
+
+    # Check if points are within the model boundary polygon
+    mask = gdf.geometry.within(spatial.model_boundary_poly)
+    if not mask.all():
+        print("The following geometries are NOT within the polygon:")
+        print(gdf[~mask])
+    else:
+        print("All geometries are within the polygon.")
+    gdf = gdf[gdf.geometry.within(spatial.model_boundary_poly)] # Filter points outside model
+
+    gdf = gdf[~gdf['z'].isna()] # Don't include obs with no zobs
+    gdf = gdf[gdf['z'] > geomodel.z0] # Don't include obs deeper than flow model bottom
+    gdf = gdf.reset_index(drop=True)
+
+    # Perform the intersection
+    gdf['icpl'] = gdf.apply(lambda row: mesh.vgrid.intersect(row.x,row.y), axis=1)
+    gdf['ground'] = gdf.apply(lambda row: geomodel.top_geo[row.icpl], axis=1)
+    gdf['model_bottom'] = gdf.apply(lambda row: geomodel.botm[-1, row.icpl], axis=1)
+    gdf['z-bot'] = gdf.apply(lambda row: row['z'] - row['model_bottom'], axis=1)
+
+    for idx, row in gdf.iterrows():
+        result = row['z'] - row['model_bottom']
+        if result < 0:
+            print(f"Bore {row['id']} has a z elevation below model bottom by: {result} m, removing from obs list")
+
+    gdf = gdf[gdf['z-bot'] > 0] # filters out observations that are below the model bottom
+
+    gdf['cell_disv'] = gdf.apply(lambda row: utils.xyz_to_disvcell(geomodel, row.x, row.y, row.z), axis=1)
+    gdf['cell_disu'] = gdf.apply(lambda row: utils.disvcell_to_disucell(geomodel, row['cell_disv']), axis=1)  
+
+    gdf['(lay,icpl)'] = gdf.apply(lambda row: utils.disvcell_to_layicpl(geomodel, row['cell_disv']), axis = 1)
+    gdf['lay']        = gdf.apply(lambda row: row['(lay,icpl)'][0], axis = 1)
+    gdf['icpl']       = gdf.apply(lambda row: row['(lay,icpl)'][1], axis = 1)
+    gdf['obscell_xy'] = gdf['icpl'].apply(lambda icpl: (mesh.xcyc[icpl][0], mesh.xcyc[icpl][1]))
+    gdf['obscell_z']  = gdf.apply(lambda row: geomodel.zc[row['lay'], row['icpl']], axis=1)
+    gdf['obs_zpillar']  = gdf.apply(lambda row: geomodel.zc[:, row['icpl']], axis=1)
+    gdf['geolay']       = gdf.apply(lambda row: math.floor(row['lay']/geomodel.nls), axis = 1) # model layer to geolayer
+
+    # Make sure no pinched out observations
+    if -1 in gdf['cell_disu'].values:
+        print('Warning: some observations are pinched out. Check the model and data.')
+        print('Number of pinched out observations: ', len(gdf[gdf['cell_disu'] == -1]))
+        gdf = gdf[gdf['cell_disu'] != -1] # delete pilot points where layer is pinched out
+
+    return gdf

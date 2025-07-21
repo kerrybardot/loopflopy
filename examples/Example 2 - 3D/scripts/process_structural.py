@@ -12,11 +12,13 @@ def prepare_strat_column(structuralmodel):
     strat = pd.read_excel(structuralmodel.geodata_fname, sheet_name = structuralmodel.strat_sheetname)
     strat_names = strat.unit.tolist()
     lithids = strat.lithid.tolist()
+    print(strat_names)
     vals = strat.val.tolist()
     nlg = len(strat_names) - 1 # number of geological layers
     sequences = strat.sequence.tolist()
-    sequence = list(set(sequences))
-    
+    sequence = list(dict.fromkeys(sequences)) # Preserves order and removes duplicates
+    print(sequence)
+
     # Make bespoke colormap
     stratcolors = []
     for i in range(len(strat)):
@@ -39,11 +41,13 @@ def prepare_strat_column(structuralmodel):
             mx = np.inf
         else:
             mx = vals[i-1]
-        if i != (len(sequences) - 1) and sequences[i] != sequences[i+1] and i != 1:
+
+        if i == (len(sequences) - 1): # LAST UNIT! #i != (len(sequences) - 1) and sequences[i] != sequences[i+1] and i != 1:
             mn = -np.inf
         else:
             mn = vals[i]
-        if i == 0: mn = vals[i] #work around for the ground
+        if i == 0: 
+            mn = vals[i] #work around for the ground
         stratigraphic_column[sequences[i]][strat_names[i]] = {'min': mn, 'max': mx, 'id': lithids[i], 'color': stratcolors[i]}
     ###########################    
            
@@ -52,6 +56,10 @@ def prepare_strat_column(structuralmodel):
     structuralmodel.strat_names = strat_names
     structuralmodel.cmap = cmap
     structuralmodel.norm = norm
+    structuralmodel.sequence = sequence
+    structuralmodel.lithids = lithids
+    structuralmodel.sequences = sequences
+    structuralmodel.vals = vals
     
 def prepare_geodata(structuralmodel, spatial, extent = None, Fault = True):  
 
@@ -64,13 +72,14 @@ def prepare_geodata(structuralmodel, spatial, extent = None, Fault = True):
     for i in range(len(data_list)): #iterate for each row
         
         data_type = data_list[i][3]  
-        boreid = data_list[i][0]
-        easting, northing = data_list[i][1], data_list[i][2]
-        groundlevel = data_list[i][5]
         
         #-----------RAW DATA-----------------------
         if data_type == 'Raw': ### Z VALUES: Ground (mAHD), Else: (mBGL)
             
+            boreid = data_list[i][0]
+            easting, northing = data_list[i][1], data_list[i][2]
+            groundlevel = data_list[i][5]  
+
             # Add ground level to dataframe
             formatted_data.append([boreid, easting, northing, groundlevel, 0, 'Ground', 'Ground', 0, 0, 1, data_type]) 
 
@@ -88,15 +97,21 @@ def prepare_geodata(structuralmodel, spatial, extent = None, Fault = True):
         
         #-----------CONTROL POINT-----------------------
         if data_type == 'Control': ### Z VALUES: mAHD
+            boreid = data_list[i][0]
+            easting, northing = data_list[i][1], data_list[i][2]
+            groundlevel = data_list[i][5] ## NEW!!!!!####
 
             count = 1  # Add data row for each lithology
             for j in range(6,df.shape[1]-1): #iterate through each formation 
                 if isinstance(data_list[i][j], numbers.Number) == True:  # Add lithology  
-                    Z         = groundlevel - float(data_list[i][j])             # elevation (mAHD)
+                    Z         = groundlevel - float(data_list[i][j])   # NEW!!!!#          # elevation (mAHD)
                     val       = strat.val[count]                   # designated isovalue
                     unit      = strat.unit[count]                  # unit 
                     feature   = strat.sequence[count]              # sequence
-                    gx, gy, gz = 0,0,1                             # normal vector to surface (flat) 
+                    if unit == 'Ground':
+                        gx, gy, gz = 0,0,1                             # normal vector to surface (flat) 
+                    else:
+                        gx, gy, gz = np.nan, np.nan, np.nan 
                     formatted_data.append([boreid, easting, northing, Z, val, unit, feature, gx, gy, gz, data_type])      
                 count+=1
                 
@@ -181,10 +196,11 @@ def create_structuralmodel(structuralmodel, Fault = True):
     
     if Fault:
         print('Fault included!')
-        Fault = model.create_and_add_fault('Fault', displacement = 400,)
+        Fault = model.create_and_add_fault('Fault', displacement = 200,)
         
-    model.create_and_add_foliation("Kcok", nelements=1e4, buffer=0.1)
-    model.create_and_add_foliation("Leed", nelements=1e4, buffer=0.1)    
+    Kcok    = model.create_and_add_foliation("Kcok", nelements=1e4, buffer=0.1)
+    Kcok_UC = model.add_unconformity(Kcok, structuralmodel.strat[structuralmodel.strat.unit == 'Kcok'].val.iloc[0]) 
+    Leed    = model.create_and_add_foliation("Leed", nelements=1e4, buffer=0.1)    
     model.set_stratigraphic_column(structuralmodel.strat_col)
     
     structuralmodel.model = model

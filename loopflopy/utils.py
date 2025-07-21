@@ -75,26 +75,12 @@ def lay_to_z(botm, top, lay, icpl=0):
     z = cell_top - dz/2        
     return(z)
 
-def RCA(x,X):
-    #x is a point that we want to see if it is in  the polygon
-    #X is the vertices of the polygon
-    dim=len(X)
-    #print(dim)
-    #we are going to run a line to the left and see is it intercepts the line between 2 vertices
-    ct=0   
-    for i in range(dim-1):
-        #print(X[i])
-        if X[i][1]<X[i+1][1]:
-            if x[1]>X[i][1] and  x[1]<=X[i+1][1]:
-                xx=X[i][0]+(x[1]-X[i][1])/(X[i+1][1]-X[i][1])*(X[i+1][0]-X[i][0])
-                if xx >= x[0]:
-                    ct= ct + 1
-        else:
-            if x[1]>X[i+1][1] and  x[1]<=X[i][1]:
-                xx=X[i][0]+(x[1]-X[i][1])/(X[i+1][1]-X[i][1])*(X[i+1][0]-X[i][0])
-                if xx >= x[0]:
-                    ct= ct + 1           
-    return(ct % 2)
+def xyz_to_discell(x, y, x0, y1, dx, dy):
+    col = int((x - x0)/dx)
+    row = int((y1 - y)/dy)
+    cell_coords = (dx/2 + col*dx, (y1 - dy/2) - row * dy)
+    #print('Actual xy = %s %s, Cell col is %i row is %i, Cell centre is %s' %(x,y,col,row,cell_coords))
+    return (col, row, cell_coords)
 
 def disucell_to_disvcell(geomodel, disucell): # zerobased
     nlay, ncpl = geomodel.cellid_disv.shape
@@ -118,13 +104,6 @@ def disucell_to_layicpl(geomodel, disucell): # zerobased
     icpl = math.floor(disvcell - lay * ncpl) # Zero based
     return (lay,icpl)
 
-def xyz_to_discell(x, y, x0, y1, dx, dy):
-    col = int((x - x0)/dx)
-    row = int((y1 - y)/dy)
-    cell_coords = (dx/2 + col*dx, (y1 - dy/2) - row * dy)
-    #print('Actual xy = %s %s, Cell col is %i row is %i, Cell centre is %s' %(x,y,col,row,cell_coords))
-    return (col, row, cell_coords)
-
 def disucell_to_xyz(geomodel, disucell): # zerobased
     nlay, ncpl = geomodel.cellid_disv.shape
     disvcell = np.where(geomodel.cellid_disu.flatten()==disucell)[0][0]  
@@ -135,13 +114,6 @@ def disucell_to_xyz(geomodel, disucell): # zerobased
     z = geomodel.vgrid.zcellcenters[lay, icpl]
     return(x,y,z)
 
-def xyz_to_disvcell(geomodel, x,y,z): # zerobased
-    nlay, ncpl = geomodel.cellid_disv.shape
-    point = Point(x,y,z)
-    lay, icpl = geomodel.vgrid.intersect(x,y,z)
-    disvcell = icpl + lay*ncpl
-    return disvcell
-
 def xyz_to_disucell(geomodel, x,y,z): # zerobased
     nlay, ncpl = geomodel.cellid_disv.shape
     point = Point(x,y,z)
@@ -150,6 +122,15 @@ def xyz_to_disucell(geomodel, x,y,z): # zerobased
     disvcell = icpl + lay*ncpl
     disucell = geomodel.cellid_disu.flatten()[disvcell]
     return disucell
+
+def xyz_to_disvcell(geomodel, x,y,z): # zerobased
+    nlay, ncpl = geomodel.cellid_disv.shape
+    point = Point(x,y,z)
+    lay, icpl = geomodel.vgrid.intersect(x,y,z)
+    disvcell = icpl + lay*ncpl
+    return disvcell
+
+
         
 # Writing and processing MODFLOW arrays
 
@@ -291,4 +272,3 @@ def plot_node(node, geomodel, structuralmodel, spatial, sim, scenario, features,
     plt.tight_layout()  
     plt.savefig('../figures/problem_node_%i_plan.png' %(node))
     plt.show()  
-
