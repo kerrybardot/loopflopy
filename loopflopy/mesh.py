@@ -29,72 +29,85 @@ class Mesh:
 
         self.welnodes = []
         self.welnodes2 = []
+        spatial.bore_refinement_nodes = []
         
-        if self.plangrid == 'tri':
-            
-            def verts1(X, Y, l): # l is distance from centre of triangle to vertex
-                x1 = X - l*3**0.5/2 
-                x2 = X + l*3**0.5/2 
-                x3 = X
-                y1 = Y - l/2
-                y2 = Y - l/2
-                y3 = Y + l
-                return(x1, x2, x3, y1, y2, y3)
-            
-            def verts2(X, Y, l): # l is distance from centre of triangle to vertex
-                x1 = X 
-                x2 = X + l*3**0.5
-                x3 = X - l*3**0.5
-                y1 = Y - 2*l
-                y2 = Y + l
-                y3 = Y + l
-                return(x1, x2, x3, y1, y2, y3)
-    
-            for i in spatial.xypumpbores:   
-                X, Y = i[0], i[1] # coord of pumping bore
-                            
-                x1, x2, x3, y1, y2, y3 = verts1(X, Y, self.radius1) #/2
-                vertices1 = ((x1, y1), (x2, y2), (x3, y3))
-                x1, x2, x3, y1, y2, y3 = verts2(X, Y, self.radius1) #/2
-                vertices2 = ((x1, y1), (x2, y2), (x3, y3))
-                
-                self.welnodes.append(vertices1)
-                self.welnodes.append(vertices2)
-                
-            spatial.bore_refinement_nodes = []
-            for bore in range(2*spatial.npump): # x 2 because inner and outer ring of vertices
-                for node in range(len(self.welnodes[bore])):
-                    spatial.bore_refinement_nodes.append(self.welnodes[bore][node])
-#
-#           theta = np.linspace(0, 2 * np.pi, 11)
-#           for i in spatial.xypumpbores:   
-#               X = i[0] + self.radius1 * np.cos(theta)
-#               Y = i[1] + self.radius1 * np.sin(theta)    
-#               vertices1 = [(x_val, y_val) for x_val, y_val in zip(X, Y)]
-#               X = i[0] + self.radius2 * np.cos(theta)
-#               Y = i[1] + self.radius2 * np.sin(theta)    
-#               vertices2 = [(x_val, y_val) for x_val, y_val in zip(X, Y)]
-#               self.welnodes.append(vertices1)
-#               self.welnodes.append(vertices2)
-#               #self.welnodes2.append(vertices2)
-                    
+        if not hasattr(spatial, 'xypumpbores'):
+            print("No pumping bores defined in spatial object")
+            return
         
-        if self.plangrid == 'vor':
-            theta = np.linspace(0, 2 * np.pi, 11)
-            for i in spatial.xypumpbores:   
-                X = i[0] + self.radius1 * np.cos(theta)
-                Y = i[1] + self.radius1 * np.sin(theta)    
-                vertices1 = [(x_val, y_val) for x_val, y_val in zip(X, Y)]
-                X = i[0] + self.radius2 * np.cos(theta)
-                Y = i[1] + self.radius2 * np.sin(theta)    
-                vertices2 = [(x_val, y_val) for x_val, y_val in zip(X, Y)]
-                self.welnodes.append(vertices1)
-                #self.welnodes2.append(vertices2)
+        else:
+            
+            if self.plangrid == 'car':
+                print('No bore refinement nodes for structured grids')
+                
+            if self.plangrid == 'tri':
 
-            spatial.bore_refinement_nodes = []
-            for bore in range(spatial.npump): # x 2 because inner and outer ring of vertices
-                for node in range(len(self.welnodes[bore])):
-                    spatial.bore_refinement_nodes.append(self.welnodes[bore][node])
+                print("Creating bore refinement nodes for pumping bores")
+                
+                def verts1(X, Y, l): # l is distance from centre of triangle to vertex
+                    x1 = X - l*3**0.5/2 
+                    x2 = X + l*3**0.5/2 
+                    x3 = X
+                    y1 = Y - l/2
+                    y2 = Y - l/2
+                    y3 = Y + l
+                    return(x1, x2, x3, y1, y2, y3)
+                
+                def verts2(X, Y, l): # l is distance from centre of triangle to vertex
+                    x1 = X 
+                    x2 = X + l*3**0.5
+                    x3 = X - l*3**0.5
+                    y1 = Y - 2*l
+                    y2 = Y + l
+                    y3 = Y + l
+                    return(x1, x2, x3, y1, y2, y3)
+        
+                for i in spatial.xypumpbores:   
+                    X, Y = i[0], i[1] # coord of pumping bore
+                                
+                    x1, x2, x3, y1, y2, y3 = verts1(X, Y, self.radius1) #/2
+                    vertices1 = ((x1, y1), (x2, y2), (x3, y3))
+                    x1, x2, x3, y1, y2, y3 = verts2(X, Y, self.radius1) #/2
+                    vertices2 = ((x1, y1), (x2, y2), (x3, y3))
+                    
+                    self.welnodes.append(vertices1)
+                    self.welnodes.append(vertices2)
+                    
+                for bore in range(2*spatial.npump): # x 2 because inner and outer ring of vertices
+                    for node in range(len(self.welnodes[bore])):
+                        spatial.bore_refinement_nodes.append(self.welnodes[bore][node])
+    #
+    #           theta = np.linspace(0, 2 * np.pi, 11)
+    #           for i in spatial.xypumpbores:   
+    #               X = i[0] + self.radius1 * np.cos(theta)
+    #               Y = i[1] + self.radius1 * np.sin(theta)    
+    #               vertices1 = [(x_val, y_val) for x_val, y_val in zip(X, Y)]
+    #               X = i[0] + self.radius2 * np.cos(theta)
+    #               Y = i[1] + self.radius2 * np.sin(theta)    
+    #               vertices2 = [(x_val, y_val) for x_val, y_val in zip(X, Y)]
+    #               self.welnodes.append(vertices1)
+    #               self.welnodes.append(vertices2)
+    #               #self.welnodes2.append(vertices2)
+                        
+            
+            if self.plangrid == 'vor':
+
+                print("Creating bore refinement nodes for pumping bores")
+
+                theta = np.linspace(0, 2 * np.pi, 11)
+                for i in spatial.xypumpbores:   
+                    X = i[0] + self.radius1 * np.cos(theta)
+                    Y = i[1] + self.radius1 * np.sin(theta)    
+                    vertices1 = [(x_val, y_val) for x_val, y_val in zip(X, Y)]
+                    X = i[0] + self.radius2 * np.cos(theta)
+                    Y = i[1] + self.radius2 * np.sin(theta)    
+                    vertices2 = [(x_val, y_val) for x_val, y_val in zip(X, Y)]
+                    self.welnodes.append(vertices1)
+                    #self.welnodes2.append(vertices2)
+
+                for bore in range(spatial.npump): # x 2 because inner and outer ring of vertices
+                    for node in range(len(self.welnodes[bore])):
+                        spatial.bore_refinement_nodes.append(self.welnodes[bore][node])
 
     def prepare_nodes_and_polygons(self, spatial, node_list, polygon_list):
         self.nodes = []
@@ -122,52 +135,67 @@ class Mesh:
     def create_mesh(self, project, spatial):
 
         if self.plangrid == 'car':
-            self.delx = (spatial.x1 - spatial.x0)/self.ncol
-            self.dely = (spatial.y1 - spatial.y0)/self.nrow
-            delr = self.delx * np.ones(self.ncol, dtype=float)
-            delc = self.dely * np.ones(self.nrow, dtype=float)
-            top  = np.ones((self.nrow, self.ncol), dtype=float)
-            botm = np.zeros((1, self.nrow, self.ncol), dtype=float)
-            print(spatial.x0, spatial.y0)
-            sg = flopy.discretization.StructuredGrid(delr=delr, delc=delc, top=top, botm=botm, xoff = spatial.x0, yoff = spatial.y0)
+            print("Creating structured grid")
+
+            x0 = spatial.x0
+            y0 = spatial.y0
+            x1 = spatial.x1
+            y1 = spatial.y1
+            ncol = self.ncol
+            nrow = self.nrow
+
+            delx = (x1 - x0)/ncol
+            dely = (y1 - y0)/nrow
+            delr = delx * np.ones(ncol, dtype=float)
+            delc = dely * np.ones(nrow, dtype=float)
+            top  = np.ones((nrow, ncol), dtype=float)
+            botm = np.zeros((1, nrow, ncol), dtype=float)
+
+            sg = flopy.discretization.StructuredGrid(delr=delr, delc=delc, top=top, botm=botm, 
+                                                    xoff = x0, yoff = y0)
             xyzcenters = sg.xyzcellcenters
-            self.xyzcenters = xyzcenters
-            xcenters = self.xyzcenters[0][0]
-            ycenters = [self.xyzcenters[1][i][0] for i in range(self.nrow)]
-            #ycenters = ycenters[::-1]
+
+            xcenters = xyzcenters[0][0]
+            ycenters = [xyzcenters[1][i][0] for i in range(nrow)]
             self.xcenters, self.ycenters = xcenters, ycenters
 
             cell2d = []
             xcyc = [] # added 
-            for n in range(self.nrow*self.ncol):
+            for n in range(nrow*ncol):
                 l,r,c = sg.get_lrc(n)[0]
                 xc = xcenters[c]
                 yc = ycenters[r]
-                #xc = xyzcenters[0][0][c]
-                #yc = xyzcenters[0][1][r]
-                iv1 = c + r * (self.ncol + 1)  # upper left
+                iv1 = c + r * (ncol + 1)  # upper left
                 iv2 = iv1 + 1
-                iv3 = iv2 + self.ncol + 1
+                iv3 = iv2 + ncol + 1
                 iv4 = iv3 - 1
                 cell2d.append([n, xc, yc, 5, iv1, iv2, iv3, iv4, iv1])
                 xcyc.append((xc, yc))
             
             vertices = []
-            xa = np.arange(spatial.x0, spatial.x1 + self.delx, self.delx)      
-            ya = np.arange(spatial.y1, spatial.y0 - self.dely/2, -self.dely)
+            xa = np.arange(x0, x1 + delx/2, delx)    #(x0, x1 + delx, delx)   
+            ya = np.arange(y1, y0 - dely/2, -dely)
             self.xa, self.ya = xa, ya
+            print(len(xa), len(ya))
             n = 0
             for j in ya:
                 for i in xa:
                     vertices.append([n, i, j])
                     n+=1
+            
+            self.delx, self.dely = delx, dely
             self.sg = sg    
             self.cell2d = cell2d
             self.xcyc = xcyc
+            self.xc, self.yc = list(zip(*self.xcyc))
             self.vertices = vertices
-            self.ncpl = len(self.cell2d)
+            self.ncpl = len(cell2d)
             
-            self.vgrid = flopy.discretization.VertexGrid(vertices=self.vertices, cell2d=self.cell2d, ncpl = self.ncpl, nlay = 1)
+            self.vgrid = flopy.discretization.VertexGrid(vertices=vertices, 
+                                                        cell2d=cell2d, 
+                                                        ncpl = self.ncpl, 
+                                                        nlay = 1,
+                                                        crs = project.crs)
             self.gi = flopy.utils.GridIntersect(self.vgrid)
             
             if hasattr(spatial, 'model_boundary_poly'):
@@ -177,6 +205,7 @@ class Mesh:
                     self.idomain[icpl] = 1
             
         if self.plangrid == 'tri':
+            print("Creating triangular grid")
         
             tri = Triangle(angle    = self.angle, 
                            model_ws = project.workspace, 
@@ -201,6 +230,9 @@ class Mesh:
             self.vgrid = flopy.discretization.VertexGrid(vertices=self.vertices, cell2d=self.cell2d, ncpl = self.ncpl, nlay = 1)
             
         if self.plangrid == 'vor':
+
+            print("Creating Voronoi grid")
+
             tri = Triangle(angle = self.angle, 
                model_ws = project.workspace, 
                exe_name = project.triexe, 
@@ -461,7 +493,7 @@ class Mesh:
         ax.set_title('Special cells')
             
         pmv = flopy.plot.PlotMapView(ax = ax, modelgrid=self.vgrid)
-        #pmv.plot_grid(color = 'gray', lw = 0.8)
+        pmv.plot_grid(color = 'gray', lw = 0.4)
 
         unique_ibd = np.unique(self.ibd)
         print(unique_ibd)
