@@ -132,7 +132,7 @@ class Mesh:
                 print("polygon ", n, " needs to be a Shapely Polygon")
             
     
-    def create_mesh(self, project, spatial):
+    def create_mesh(self, spatial):
 
         if self.plangrid == 'car':
             print("Creating structured grid")
@@ -195,7 +195,7 @@ class Mesh:
                                                         cell2d=cell2d, 
                                                         ncpl = self.ncpl, 
                                                         nlay = 1,
-                                                        crs = project.crs)
+                                                        crs = spatial.crs)
             self.gi = flopy.utils.GridIntersect(self.vgrid)
             
             if hasattr(spatial, 'model_boundary_poly'):
@@ -257,21 +257,19 @@ class Mesh:
                 self.xcyc.append((cell[1],cell[2]))
             self.xc, self.yc = list(zip(*self.xcyc))
 
+    def create_mesh_transect(self, x0, x1, y0, y1, delr, delc): # delr is a list of column widths
         if self.plangrid == 'transect':
 
-            x0, x1 = spatial.model_extent[0][0], spatial.model_extent[1][0]
-            y0, y1 = spatial.model_extent[0][1], spatial.model_extent[1][1]
-
-            transect_length = ((spatial.x1 - spatial.x0)**2 + (spatial.y1 - spatial.y0)**2)**0.5
-            self.delx = transect_length/self.ncol
-            self.dely = 1000.
-            delr = self.delx * np.ones(self.ncol, dtype=float)
-            delc = self.dely * np.ones(self.nrow, dtype=float)
+            self.ncol = len(delr) # number of columns in transect
+            self.nrow = 1
+            self.ncpl = self.ncol * self.nrow
+            delr = np.array(delr)
+            delc = delc * np.ones(self.nrow, dtype=float)
             top  = np.ones((self.nrow, self.ncol), dtype=float)
             botm = np.zeros((1, self.nrow, self.ncol), dtype=float)
-            angrot = np.degrees(np.arctan((y1 - y0)/(x1 - x0)))
+            
+            angrot = np.degrees(np.arctan((y0 - y1)/(x0 - x1)))
             print('angrot ', angrot)   
-
             sg = flopy.discretization.StructuredGrid(delr=delr, delc=delc, top=top, botm=botm, 
                                                     xoff = x0, yoff = y0, angrot = angrot)
                                                     
@@ -298,11 +296,11 @@ class Mesh:
             self.sg = sg    
             self.cell2d = cell2d
             self.xcyc = xcyc
+            self.xc, self.yc = list(zip(*self.xcyc))
             self.vertices = vertices
-            self.ncpl = len(self.cell2d)
             self.xyzcenters = xyzcenters
             self.xcenters, self.ycenters = xcenters, ycenters
-            
+            self.idomain = np.ones((self.ncpl))
             self.vgrid = flopy.discretization.VertexGrid(vertices=self.vertices, cell2d=self.cell2d, ncpl = self.ncpl, nlay = 1)
             self.gi = flopy.utils.GridIntersect(self.vgrid)
     

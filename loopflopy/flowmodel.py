@@ -20,21 +20,37 @@ class Flowmodel:
         self.lith = geomodel.lith
         self.logk11 = geomodel.logk11
         self.logk33 = geomodel.logk33
-        
-    def write_flowmodel(self, transient = False, xt3d = True, **kwargs):
-        
-        print('   Writing simulation and gwf for ', self.scenario, ' ...')
-        print('xt3d = ', xt3d)
 
-        self.xt3d = xt3d
-        self.staggered = True
-        self.newtonoptions = ['UNDER_RELAXATION']
+    def write_flowmodel(self, transient = False, 
+                        xt3d = True, 
+                        staggered = True, 
+                        chd = False, 
+                        rch = False,
+                        obs = False, 
+                        wel = False, 
+                        ghb = False, 
+                        evt = False, 
+                        newtonoptions = ['UNDER_RELAXATION'], 
+                        **kwargs):
 
-        t0 = datetime.now()
-       
+        # Set all method parameters as instance attributes
+        params = locals().copy()  # Get all local variables (method parameters)
+        params.pop('self')        # Remove 'self' from the dictionary
+        params.pop('kwargs')      # Remove 'kwargs' from the dictionary
+        
+        for key, value in params.items():
+            setattr(self, key, value)
+        
         for key, value in kwargs.items():
-            setattr(self, key, value)    
-        print('mf6 executable expected: ', self.project.mfexe)
+            setattr(self, key, value)
+            
+        print('    evt = ', self.evt)
+        t0 = datetime.now()
+        print('Writing simulation and gwf for ', self.scenario, ' ...')
+        print('    xt3d = ', xt3d)
+        print('    staggered = ', self.staggered)
+        print('    transient = ', transient)
+        print('    mf6 executable expected: ', self.project.mfexe)
         # -------------- SIM -------------------------
         sim = flopy.mf6.MFSimulation(sim_name = 'sim', 
                                      version = 'mf6',
@@ -125,6 +141,19 @@ class Flowmodel:
                                                            stress_period_data = self.data.spd_wel, 
                                                            save_flows=True,) 
               
+        # -------------- GHB-------------------------
+        if self.ghb:
+            
+            ghb = flopy.mf6.modflow.mfgwfghb.ModflowGwfghb(gwf, 
+                                                           maxbound = len(self.data.ghb_rec),
+                                                           stress_period_data = self.data.ghb_rec,)
+        # -------------- CHD-------------------------
+        if self.chd:
+            
+            chd = flopy.mf6.modflow.mfgwfchd.ModflowGwfchd(gwf, 
+                                                           maxbound = len(self.data.chd_rec),
+                                                           stress_period_data = self.data.chd_rec,)
+        
         # -------------- CHD-------------------------
         if self.chd:
             
@@ -192,14 +221,19 @@ class Flowmodel:
             
             bud = gwf.output.budget()
             spd = bud.get_data(text='DATA-SPDIS')[0]
-            chdflow = bud.get_data(text='CHD')[-1]
-            obs_data = gwf.obs
+            
+            if self.chd == True:
+                chdflow = bud.get_data(text='CHD')[-1]
+                self.chdflow = chdflow
+            
+            if self.obs == True:
+                obs_data = gwf.obs
+                self.obsdata = obs_data
 
             self.gwf = gwf
             self.head = head
-            self.obsdata = obs_data
             self.spd = spd
-            self.chdflow = chdflow
+            
             self.runtime = run_time.total_seconds()
             
         if success:

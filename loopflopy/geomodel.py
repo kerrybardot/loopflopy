@@ -63,7 +63,7 @@ def reshape_loop2mf(array, nlay, ncpl):
     
 class Geomodel:
     
-    def __init__(self, scenario, vertgrid, z0, z1, transect = False, nlg = None, **kwargs):     
+    def __init__(self, scenario, vertgrid, z0, z1, transect = False, nlg = None, nlay = None, **kwargs):     
            
         self.scenario = scenario                      
         self.vertgrid = vertgrid     
@@ -71,7 +71,7 @@ class Geomodel:
         self.z1 = z1
         self.transect = transect
         self.nlg = nlg # option to only use a subset of geological layers (from top)
-        
+        self.nlay = nlay
 
         for key, value in kwargs.items():
             setattr(self, key, value)    
@@ -79,33 +79,24 @@ class Geomodel:
 #---------- FUNCTION TO EVALUATE GEO MODEL AND POPULATE HYDRAULIC PARAMETERS ------#
 
     def evaluate_structuralmodel(self, mesh, structuralmodel): # Takes the project parameters and model class.         
-        #print('   Creating Geomodel (lithology and discretisation arrays) for ', self.scenario, ' ...')
+        print('Creating Geomodel for ', self.scenario, ' ...\n')
+
+        print('0. Creating xyz array... ')
+        t0 = datetime.now()
         
+        self.units = np.array(structuralmodel.strat_names[1:])
         self.strat_names = structuralmodel.strat_names[1:]
         if self.nlg is None:
             self.nlg = len(self.strat_names)  
         z0, z1 = self.z0, self.z1
         self.ncpl = mesh.ncpl
+        self.plangrid = mesh.plangrid
 
-
-#---------- VOX - DIS ARRAY ------#
-
+#---------- EVALUATE STRUCTUAL MODEL - VOX  ------#
         if self.vertgrid == 'vox':
-            
-            self.nlay = nlay
-            self.dz = (z1 - z0) / self.nlay
-            self.ncell3d = mesh.ncpl * self.nlay
-            self.idomain = np.ones((self.nlay, mesh.ncpl)) 
-            self.top = z1 * np.ones((mesh.ncpl), dtype=float)
-            
-            self.zc = np.arange(z0 + self.dz / 2, z1, self.dz)  # Cell centres
-            self.zbot = np.arange(z1 - self.dz, z0 - self.dz, -self.dz)
-            
-            self.botm = np.zeros((self.nlay, mesh.ncpl)) 
-            for lay in range(self.nlay):
-                self.botm[lay,:] = self.zbot[lay]
 
-            #----- VOX - LITH AND VF ------#
+            self.dz = (z1 - z0) / self.nlay
+            self.zc = np.arange(z0 + self.dz / 2, z1, self.dz)  # Cell centres
 
             xyz = []                         
             for k in range(self.nlay):
@@ -114,6 +105,7 @@ class Geomodel:
                     x, y = mesh.xcyc[i][0], mesh.xcyc[i][1]
                     xyz.append([x,y,z])
             
+            print('   len(xyz) = ', len(xyz))  
             litho = structuralmodel.model.evaluate_model(xyz)  # generates an array indicating lithology for every cell
             vf = structuralmodel.model.evaluate_model_gradient(xyz) # generates an array indicating gradient for every cell
             
@@ -128,15 +120,13 @@ class Geomodel:
             for i in range(len(vf)):  
                 ang1.append(find_angle1(vf[i]))
                 ang2.append(find_angle2(vf[i]))
-            self.ang1  = reshape_loop2mf(np.asarray(ang1), nlay, mesh.ncpl)
-            self.ang2  = reshape_loop2mf(np.asarray(ang2), nlay, mesh.ncpl)
+            self.ang1  = reshape_loop2mf(np.asarray(ang1), self.nlay, mesh.ncpl)
+            self.ang2  = reshape_loop2mf(np.asarray(ang2), self.nlay, mesh.ncpl)
             
-#---------- CON AND CON2  Finding geological layers bottoms ------#
+#---------- EVALUATE STRUCTUAL MODEL - CON and CON2  ------#
 
         if self.vertgrid == 'con' or self.vertgrid == 'con2' : # CREATING DIS AND NPF ARRAYS
             
-            print('   0. Creating xyz array...')
-            t0 = datetime.now()
             nlay = int((z1 - z0)/self.res)
             dz = (z1 - z0)/nlay # actual resolution
             self.dz = dz
@@ -150,29 +140,55 @@ class Geomodel:
 
             t1 = datetime.now()
             run_time = t1 - t0
-            print('Time taken Block 0 (creating xyz array) = ', run_time.total_seconds())
+            print('   Time taken Block 0 (creating xyz array) = ', run_time.total_seconds())
 
-            print('   1. Evaluating structural model...')
+            print('\n1. Evaluating structural model... -----')
             t0 = datetime.now()
             self.xyz = xyz  
-            print('len(xyz) = ', len(xyz))      
+            print('   len(xyz) = ', len(xyz))      
             litho = structuralmodel.model.evaluate_model(np.array(xyz))  # generates an array indicating lithology for every cell
             litho = np.asarray(litho)
             litho = litho.reshape((nlay, mesh.ncpl)) # Reshape to lay, ncpl
             litho = np.flip(litho, 0)
             self.litho = litho
-
+            
             t1 = datetime.now()
             run_time = t1 - t0
-            print('Time taken Block 1 (Evaluate model) = ', run_time.total_seconds())
+            print('   Time taken Block 1 (Evaluate model) = ', run_time.total_seconds())
 
     def create_model_layers(self, mesh, structuralmodel, surface):
-            
-        self.units = np.array(structuralmodel.strat_names[1:])  
+        print('\n2. Creating geo model layers...')
+        t0 = datetime.now()
+  
+#---------- CREATE MODEL LAYERS - VOX  ------#
+        if self.vertgrid == 'vox':
 
+            self.ncell3d = mesh.ncpl * self.nlay
+            self.idomain = np.ones((self.nlay, mesh.ncpl)) 
+            self.top = self.z1 * np.ones((mesh.ncpl), dtype=float)
+            
+            self.zbot = np.arange(self.z1 - self.dz, self.z0 - self.dz, -self.dz)
+            self.botm = np.zeros((self.nlay, mesh.ncpl)) 
+            for lay in range(self.nlay):
+                self.botm[lay,:] = self.zbot[lay]
+
+            # Sort out cell ids
+            self.cellid_disv = 1 * np.ones_like(self.botm, dtype = int)
+            self.cellid_disu = -1 * np.ones_like(self.botm, dtype = int)
+            i = 0
+            for lay in range(self.nlay):
+                for icpl in range(mesh.ncpl):
+                    self.cellid_disv[lay, icpl] = lay * mesh.ncpl + icpl
+                    if self.idomain[lay, icpl] != -1:
+                        self.cellid_disu[lay, icpl] = i
+                        i += 1
+            self.ncell_disv = self.cellid_disv.size
+            self.ncell_disu = np.count_nonzero(self.cellid_disu != -1)
+
+        
+#---------- CREATE MODEL LAYERS - CON and CON2  ------#
         if self.vertgrid == 'con' or self.vertgrid == 'con2' : # CREATING DIS AND NPF ARRAYS    
-
-            
+     
             def start_stop_arr(initial_list): # Function to look down pillar and pick geo bottoms
                 a = np.asarray(initial_list)
                 mask = np.concatenate(([True], a[1:] != a[:-1], [True]))
@@ -185,10 +201,6 @@ class Geomodel:
             nlay = int((self.z1 - self.z0)/self.res)
             dz = (self.z1 - self.z0)/nlay # actual resolution
             
-            # ------------------------------------------
-            print('   2. Creating geo model layers...')
-            t0 = datetime.now()
-
             # Arrays for geo arrays
             top_geo     = 9999 * np.ones((mesh.ncpl), dtype=float) # empty array to fill in ground surface
             botm_geo    = np.zeros((self.nlg, mesh.ncpl), dtype=float) # bottom elevation of each geological layer
@@ -196,22 +208,21 @@ class Geomodel:
             idomain_geo = np.zeros((self.nlg, mesh.ncpl), dtype=float)      # idomain array for each lithology
             
             stop_array = np.zeros((self.nlg+1, mesh.ncpl), dtype=float)
-            print('stop_array shape', stop_array .shape )
+            #print('stop_array shape', stop_array .shape )
             V = self.litho
             W = V[1:, :] - V[:-1, :] 
-            #W = V[1:, :] - V[:-1, :] 
+
             if np.any(W < 0):
                 #print(f'Geology repeats itself {np.sum(W < 0)} times at {np.where(W < 0)}')
                 W[W < 0] = 0 # this is to handle instances where geology goes in reverse order (back to a younger sequence)
 
-            
-            print('nlay = ', nlay)
-            print('ncpl = ', mesh.ncpl)
-            print('nlg number of geo layers = ', self.nlg)
+            print('   nlay = ', nlay)
+            print('   ncpl = ', mesh.ncpl)
+            print('   nlg number of geo layers = ', self.nlg)
 
             for icpl in range(mesh.ncpl):
                 #print('ICPL = ', icpl)
-                #if icpl == 297:
+                #if icpl == 29:
                 #    print('Pillar lithologies ', V[:,icpl])
                 #    print('V - V ', V[1:, icpl] - V[:-1, icpl])
 
@@ -229,7 +240,7 @@ class Geomodel:
                     idx = np.where(W[:,icpl] == i)[0] # checking if different from row above
                     # e.g. if i =  3 and idx =  [146 199], then it skips 3 layers TWICE!
                     if idx.size != 0: # If there returns an index
-                        #print('i = ', i, 'idx = ', idx)
+                        #print('geo layer = ', i, 'index where lith changes = ', idx)
                         
                         for id in idx:
                             #if icpl == 297: print('id = ', id, 'idx = ', idx, 'np.ones(i) = ', np.ones(i))
@@ -237,34 +248,22 @@ class Geomodel:
                             stop = np.concatenate((stop, idx_array))
     
                 n = self.nlg+1 - len(stop)# number of pinched out layers at the bottom not yet added to stop array
-                #print('n = ', n)
+                #print('number of pinched out layers at the bottom not yet added to stop array = ', n)
                 #print('stop  ', stop)
                 m = (nlay-1) * np.ones(n) # this is just accounting for the bottom geo layers that dont exist in pillar
                 stop = np.concatenate((stop, m))
 
                 stop = np.sort(stop)
-                #if icpl == 297: print('stop ', stop)     
+                #if icpl == 29: print('stop ', stop)     
                 stop_array[:,icpl] = stop
-
 
             #print('stop_array.shape = ', stop_array.shape)
             botm_geo = self.z1 - (stop_array + 1)* self.dz
             botm_geo[:, 0]
             
-            #top_geo = botm_geo[0,:] # replace top of geomodel with dem
-
             top_geo = surface
             botm_geo = botm_geo[1:,:]
-            #print('top_geo shape', top_geo.shape)
-            #print('botm_geo', botm_geo.shape)
-            t1 = datetime.now()
-            run_time = t1 - t0
-            print('Time taken Block 2 create geomodel layers ', run_time.total_seconds())
-
-                           
-            # -------------------------------
-            print('   3. Evaluating geo layer thicknesses...')
-            t0 = datetime.now()
+            print('   botm_geo_shape', botm_geo.shape)
 
             for lay_geo in range(self.nlg):
                     if lay_geo == 0:
@@ -276,18 +275,22 @@ class Geomodel:
             self.botm_geo = botm_geo  
             self.thick_geo = thick_geo    
             self.idomain_geo = idomain_geo 
-            t1 = datetime.now()
-            run_time = t1 - t0
-            print('Time taken Block 3 tiny bit', run_time.total_seconds())
-                    
-            
-#----- CON - CREATE LITH, BOTM AND IDOMAIN ARRAYS (PILLAR METHOD, PICKS UP PINCHED OUT LAYERS) ------#    
+        t1 = datetime.now()
+        run_time = t1 - t0
+        print('   Time taken Block 2 (Create geological model layers)', run_time.total_seconds())
+
+        print('\n3. Creating flow model layers...')
+        t0 = datetime.now()
+        #----- CON - CREATE LITH, BOTM AND IDOMAIN ARRAYS (PILLAR METHOD, PICKS UP PINCHED_OUT LAYERS) ------#    
         if self.vertgrid == 'con':
 
-            print('   4. Creating flow model layers...')
             t0 = datetime.now()
 
             self.nlay   = self.nlg * self.nls # number of model layers = geo layers * sublayers 
+            self.lith = np.zeros((self.nlay, mesh.ncpl), dtype=float) # lithology for each model layer
+            self.botm = np.zeros((self.nlay, mesh.ncpl), dtype=float) # bottom elevation for each model layer
+            self.idomain = np.zeros((self.nlay, mesh.ncpl), dtype=int) # idomain for each model layer
+
             botm        = np.zeros((self.nlay, mesh.ncpl), dtype=float) # bottom elevation of each model layer
             idomain     = np.ones((self.nlay, mesh.ncpl), dtype=int)    # idomain for each model layer
 
@@ -319,21 +322,19 @@ class Geomodel:
                     
             #self.botm_geo = botm_geo
             self.botm = botm
+            self.top = self.top_geo # top of model layers is the same as top of geo layers
             self.idomain = idomain
             self.nlay = self.nlg * self.nls
             self.lith_disv = self.lith
+
             self.model_layers = [] # This creates a list of flow model layers for every geological
             for i in range(self.nlg):
                 a = []
                 for j in range(self.nls):
                     a.append(i * self.nls + j)
                 self.model_layers.append(a)
-
-            t1 = datetime.now()
-            run_time = t1 - t0
-            print('Time taken Block 4 create flow model layers = ', run_time.total_seconds())
  
-        #----- CON - CREATE LITH, BOTM AND IDOMAIN ARRAYS (PILLAR METHOD, PICKS UP PINCHED OUT LAYERS) ------#    
+        #----- CON2 - CREATE LITH, BOTM AND IDOMAIN ARRAYS (PILLAR METHOD, PICKS UP PINCHED OUT LAYERS) ------#    
         if self.vertgrid == 'con2':
 
             sublays     = np.zeros((self.nlg, mesh.ncpl), dtype=float) # number of sublayers
@@ -342,16 +343,17 @@ class Geomodel:
             for lay_geo in range(self.nlg):
                 for icpl in range(mesh.ncpl):
                     max_lay_thick = self.max_thick[lay_geo]
-                    if thick_geo[lay_geo, icpl]/2 > max_lay_thick:
-                        sublays[lay_geo, icpl] = math.ceil(thick_geo[lay_geo, icpl]/ max_lay_thick) # geo layer has a minimum of 2 model layers per geo layer
+                    if self.thick_geo[lay_geo, icpl]/self.nls > max_lay_thick:
+                        sublays[lay_geo, icpl] = math.ceil(self.thick_geo[lay_geo, icpl]/ max_lay_thick) # geo layer has a minimum of 2 model layers per geo layer
                     else: 
-                        sublays[lay_geo, icpl]= 2 # geo layer has a minimum of 2 model layers per geo layer
-                    dz_sublays[lay_geo, icpl] = thick_geo[lay_geo, icpl] / sublays[lay_geo, icpl]
+                        sublays[lay_geo, icpl]= self.nls # geo layer has a minimum of 2 model layers per geo layer
+                    dz_sublays[lay_geo, icpl] = self.thick_geo[lay_geo, icpl] / sublays[lay_geo, icpl]
                         
             max_sublays = np.ones((self.nlg),  dtype=int)
             for lay_geo in range(self.nlg):
                 max_sublays[lay_geo] = sublays[lay_geo, :].max()
             nlay = max_sublays.sum()     
+            #print('Max sublays: ', max_sublays)
             
             # Arrays for flow model
             botm        = np.zeros((nlay, mesh.ncpl), dtype=float) # bottom elevation of each model layer
@@ -362,16 +364,25 @@ class Geomodel:
             for icpl in range(mesh.ncpl):
                 lay = 0 # model layer
                 for lay_geo in range(self.nlg):
-                    #if icpl == 500: print('GEO LAY = ', lay_geo)
-                    nsublay    = sublays[lay_geo, icpl]
-                    dz         = thick_geo[lay_geo, icpl] / nsublay
-                    max_sublay = max_sublays[lay_geo]
-                    for s in range(max_sublay): # marches through each sublayer of geo layer
+
+                    nsublay    = sublays[lay_geo, icpl] # number of sublayers in geo layer
+                    dz         = self.thick_geo[lay_geo, icpl] / nsublay
+                    # AI suggestion
+                    #if nsublay == 0: # if pinched out layer, skip   
+                    #    idomain[lay, icpl] = -1
+                    #    botm[lay, icpl] = botm[lay-1, icpl] if lay > 0 else self.top_geo[icpl]
+                    #    lith[lay, icpl] = lay_geo
+                    #    lay += 1
+                    #    continue
+
+                    for s in range(max_sublays[lay_geo]): # marches through each sublayer of geo layer
+                        #print('   icpl: ', icpl, 'lay_geo: ', lay_geo, 'sublay: ', s)
                         if s < nsublay: # active cell
                             if lay == 0:
                                 #if icpl == 500: print('Top layer, lay = ', lay)
                                 #if icpl == 500: print(top[icpl] - dz)
-                                botm[lay, icpl] = self.top_geo[icpl] - dz
+
+                                botm[lay, icpl] = self.top_geo[icpl] - dz # KB
                                 lith[lay, icpl] = lay_geo
                             else:
                                 #if icpl == 500: print('Not top layer, lay = ', lay)
@@ -396,17 +407,24 @@ class Geomodel:
                         idomain[lay, icpl] = -1
     
             self.botm_geo = botm_geo      
+            #botm = botm.reshape((geomodel.nlay, mesh.nrow, mesh.ncol))
             self.botm = botm
             self.idomain = idomain
             self.lith = lith
             self.lith_disv = lith
             self.nlay = nlay
+            self.top = self.top_geo # top of model layers is the same as top of geo layers
 
 
+        t1 = datetime.now()
+        run_time = t1 - t0
+        print('   Time taken Block 3 create flow model layers = ', run_time.total_seconds())
 
-        ###############
-            
-        if self.vertgrid == 'con' or self.vertgrid == 'con2' :
+        print('\n4. Calculating cellids and gradients...')
+        t0 = datetime.now()
+        
+        #---------CON/CON2 Calculating cellids and gradients
+        if self.vertgrid == 'con' or self.vertgrid == 'con2':
 
             # Sort out cell ids
             # First create an array for cellids in layered version  (before we pop cells that are absent)
@@ -422,52 +440,31 @@ class Geomodel:
             self.ncell_disv = self.cellid_disv.size
             self.ncell_disu = np.count_nonzero(self.cellid_disu != -1)
 
-
-            print('   5. Calculating gradients...')
-            t0 = datetime.now()
-
-            if self.transect == False:
-                xyz = []                         
-                for lay in range(self.nlay-1, -1, -1):
-                    for icpl in range(mesh.ncpl):  
-                        x, y, z = mesh.xcyc[icpl][0], mesh.xcyc[icpl][1], self.botm[lay, icpl] 
-                        xyz.append([x,y,z])
-                vf = structuralmodel.model.evaluate_model_gradient(xyz) # generates an array indicating gradient for every cell
-                
-                ang1, ang2 = [], []
-                for i in range(len(vf)):  
-                    ang1.append(find_angle1(vf[i]))
-                    ang2.append(find_angle2(vf[i]))
-
-            else:
-                vf = np.gradient(self.botm, mesh.delx) 
-                #print('vf1 shape ', vf[1].shape)
-                #print('vf 1 ', vf[1])
-                vf = vf[1].flatten()
-                print('vf shape ', vf.shape)
-                ang2 = []
-                for i in range(len(vf)):  # angle 2 (DIP) rotates around y axis clockwise looking from +ve y.
-                    angle2 = np.degrees(math.atan(vf[i]))
-                    ang2.append(angle2)
-                
-                ang1 = np.zeros_like(ang2, dtype = float)  # Angle 1 always at 0 in transect
+            # Calculate gradients
+            xyz = []                         
+            for lay in range(self.nlay-1, -1, -1):
+                for icpl in range(mesh.ncpl):  
+                    x, y, z = mesh.xcyc[icpl][0], mesh.xcyc[icpl][1], self.botm[lay, icpl] 
+                    xyz.append([x,y,z])
+            vf = structuralmodel.model.evaluate_model_gradient(xyz) # generates an array indicating gradient for every cell
+            
+            ang1, ang2 = [], []
+            for i in range(len(vf)):  
+                ang1.append(find_angle1(vf[i]))
+                ang2.append(find_angle2(vf[i]))
 
             self.ang1  = reshape_loop2mf(np.asarray(ang1), self.botm.shape[0], self.botm.shape[1])
             self.ang2  = reshape_loop2mf(np.asarray(ang2), self.botm.shape[0], self.botm.shape[1])
-            
-        self.nnodes_div = len(self.botm.flatten())   
 
-        # Save model layer thicknesses as (lay, icpl) array
+        # Save model layer thicknesses as (lay, icpl) array        
         self.thick = np.zeros((self.nlay, mesh.ncpl))
-        self.thick[0,:] = self.top_geo - self.botm[0]
+        self.thick[0,:] = self.top - self.botm[0]
         self.thick[1:-1,:] = self.botm[0:-2] - self.botm[1:-1]
-        self.thick.min()
 
-        # Save cell centres z value as (lay, icpl) array
-        self.zc = self.botm + self.thick/2
-
+        self.nnodes_div = len(self.botm.flatten())   
+        self.zc = self.botm + self.thick/2 # Save cell centres z value as (lay, icpl) array
         self.vgrid = flopy.discretization.VertexGrid(vertices=mesh.vertices, cell2d=mesh.cell2d, ncpl = mesh.ncpl, 
-                                                     top = self.top_geo, botm = self.botm)
+                                                     top = self.top, botm = self.botm)
 
         # Save xyz coordinates for each cell in the model       
         xyz = []  
@@ -481,13 +478,14 @@ class Geomodel:
         
         t1 = datetime.now()
         run_time = t1 - t0
-        print('Time taken Block 5 gradients= ', run_time.total_seconds())
+        print('   Time taken Block 4 gradients= ', run_time.total_seconds())
 
 ################## PROP ARRAYS TO BE SAVED IN DISU FORMAT ##################        
     def fill_cell_properties(self, mesh): # Uses lithology codes to populate arrays 
-
         
-        
+        print('\n5. Filling cell properties...')
+        t0 = datetime.now()  
+    
         '''# First create an array for cellids in layered version  (before we pop cells that are absent)
         self.cellid_disv = np.empty_like(self.lith_disv, dtype = int)
         self.cellid_disu = -1 * np.ones_like(self.lith_disv, dtype = int)
@@ -502,9 +500,6 @@ class Geomodel:
         self.ncell_disu = np.count_nonzero(self.cellid_disu != -1)'''
         
 #---------- PROP ARRAYS (VOX and CON) ----- 
-# 
-        print('   6. Filling cell properties...')
-        t0 = datetime.now()  
         self.k11    = np.empty_like(self.lith_disv, dtype = float)
         self.k22    = np.empty_like(self.lith_disv, dtype = float)
         self.k33    = np.empty_like(self.lith_disv, dtype = float)
@@ -537,34 +532,29 @@ class Geomodel:
         self.ss     = self.ss[self.cellid_disu != -1].flatten()
         self.sy     = self.sy[self.cellid_disu != -1].flatten()
         self.iconvert     = self.iconvert[self.cellid_disu != -1].flatten()
-        print('ang1 shape ', self.ang1.shape)
-        print(self.cellid_disu[self.cellid_disu != -1].size)
+        print('   ang1 shape ', self.ang1.shape)
+
         #a1, a2 = self.ang1.reshape((self.nlay, self.ncpl)), self.ang2.reshape((self.nlay, self.ncpl))
         self.angle1 = self.ang1[self.cellid_disu != -1].flatten()
         self.angle2 = self.ang2[self.cellid_disu != -1].flatten()
         self.angle3 = np.zeros_like(self.angle1, dtype = float)  # Angle 3 always at 0
         
-        print('angle1 shape ', self.angle1.shape)
+        print('   angle1 shape ', self.angle1.shape)
         self.logk11    = logfunc(self.k11)
         self.logk22    = logfunc(self.k22)
         self.logk33    = logfunc(self.k33)
         
         t1 = datetime.now()
         run_time = t1 - t0
-        print('Time taken Block 6 Fill cell properties = ', run_time.total_seconds())
+        print('   Time taken Block 5 Fill cell properties = ', run_time.total_seconds())
 
     def fill_cell_properties_heterogeneous(self, properties): # Uses lithology codes to populate arrays 
        
 #---------- PROP ARRAYS (VOX and CON) ----- 
-# 
-        print('   6. Filling cell properties...')
-        t0 = datetime.now()  
-
-        # Lith
-        self.lith   = self.lith_disv[self.cellid_disu != -1].flatten()
-
-        # iconvert
-        self.iconvert = np.empty_like(self.lith_disv, dtype = float)
+        print('\n5. Filling cell properties (heterogeneous)...')        
+        t0 = datetime.now() 
+        self.lith   = self.lith_disv[self.cellid_disu != -1].flatten() # Lith
+        self.iconvert = np.empty_like(self.lith_disv, dtype = float) # iconvert
         for n in range(self.nlg): 
             self.iconvert[self.lith_disv==n]  = self.iconvert_perlay[n]
         self.iconvert     = self.iconvert[self.cellid_disu != -1].flatten()
@@ -586,21 +576,21 @@ class Geomodel:
         self.ss     = properties.ss_disu
         self.sy     = properties.sy_disu
         
-        print('ang1 shape ', self.ang1.shape)
+        print('   ang1 shape ', self.ang1.shape)
         print(self.cellid_disu[self.cellid_disu != -1].size)
         #a1, a2 = self.ang1.reshape((self.nlay, self.ncpl)), self.ang2.reshape((self.nlay, self.ncpl))
         self.angle1 = self.ang1[self.cellid_disu != -1].flatten()
         self.angle2 = self.ang2[self.cellid_disu != -1].flatten()
         self.angle3 = np.zeros_like(self.angle1, dtype = float)  # Angle 3 always at 0
         
-        print('angle1 shape ', self.angle1.shape)
+        print('   angle1 shape ', self.angle1.shape)
         self.logk11    = logfunc(self.k11)
         self.logk22    = logfunc(self.k22)
         self.logk33    = logfunc(self.k33)
         
         t1 = datetime.now()
         run_time = t1 - t0
-        print('Time taken Block 6 Fill cell properties = ', run_time.total_seconds())
+        print('   Time taken Block 5 Fill cell properties = ', run_time.total_seconds())
 
     def geomodel_plan_lith(self, spatial, mesh, structuralmodel, **kwargs):
         x0 = kwargs.get('x0', spatial.x0)
@@ -613,12 +603,7 @@ class Geomodel:
         ax.set_aspect('equal')
         ax.set_title('surface geology', size = 10)
 
-        #if mesh.plangrid == 'car': mesh.sg.plot(color = 'black', lw = 0.2) 
-        #if mesh.plangrid == 'tri': mesh.tri.plot(edgecolor='black', lw = 0.2)
-        #if mesh.plangrid == 'vor': mesh.vor.plot(edgecolor='black', lw = 0.2)
-
         mapview = flopy.plot.PlotMapView(modelgrid=self.vgrid, layer = 0, ax = ax)
-        
         plan = mapview.plot_array(self.surf_lith, cmap=structuralmodel.cmap, norm = structuralmodel.norm, 
                                   alpha=0.8, ax = ax)
         ax.set_xlabel('x (m)', size = 10)
@@ -685,10 +670,36 @@ class Geomodel:
                             shrink = 1.0
                             )
         cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 8, verticalalignment = 'center')    
-        plt.title(f"x0, x1, y0, y1 = {x0:.0f}, {x1:.0f}, {y0:.0f}, {y1:.0f}", size=8)
+        plt.title(f"x0, y0 = {x0:.0f}, {x1:.0f}: x1, y1 = {y0:.0f}, {y1:.0f}", size=8)
         plt.tight_layout()  
         plt.savefig('../figures/geomodel_transect.png')
         plt.show()   
+
+
+    def geomodel_transect_array(self, spatial, array, title, 
+                                vmin = None, vmax = None, **kwargs):
+        x0 = kwargs.get('x0', spatial.x0)
+        y0 = kwargs.get('y0', spatial.y0)
+        z0 = kwargs.get('z0', self.z0)
+        x1 = kwargs.get('x1', spatial.x1)
+        y1 = kwargs.get('y1', spatial.y1)
+        z1 = kwargs.get('z1', self.z1)
+    
+        fig = plt.figure(figsize = (12,4))
+        ax = plt.subplot(111)
+        xsect = flopy.plot.PlotCrossSection(modelgrid=self.vgrid , line={"line": [(x0, y0),(x1, y1)]}, geographic_coords=True)
+        csa = xsect.plot_array(a = array, alpha=0.8, vmin = vmin, vmax = vmax)
+        ax.set_xlabel('x (m)', size = 10)
+        ax.set_ylabel('z (m)', size = 10)        
+        ax.set_ylim([z0, z1])
+  
+        linecollection = xsect.plot_grid(lw = 0.1, color = 'black') 
+        
+        cbar = plt.colorbar(csa, shrink = 1.0)
+        plt.title(f"{title}\nx0, y0 = {x0:.0f}, {x1:.0f}: x1, y1 = {y0:.0f}, {y1:.0f}", size=8)
+        plt.tight_layout()  
+        plt.savefig(f'../figures/geomodel_transect_{title}.png')
+        plt.show() 
 
     def get_surface_lith(self):
         lith = self.lith_disv

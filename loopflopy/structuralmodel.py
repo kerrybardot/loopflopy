@@ -154,6 +154,9 @@ class StructuralModel:
             plt.show()
         
     def plot_ytransects2(self, transect_y, nx, nz, dz, faults = False, **kwargs):
+        # dz = spacing of bedding layers. Array length of dz should match the number of features in self.sequence_names
+        # nx, nz is the plotting resolution of lithology
+        # transect_y is a list of y-coordinates for the transects to plot   
 
         self.sequence_names = []
         for item in self.strat['sequence'].tolist():
@@ -197,13 +200,13 @@ class StructuralModel:
                 #print(feat, values, val_above)
                 V = self.model.evaluate_feature_value(feat, np.array([X.flatten(),Y.flatten(),Z.flatten()]).T).reshape(np.shape(Y))
                 for j in range(len(values)-1):
-                    contour_values = np.arange(values[j], values[j+1], dz)
+                    contour_values = np.arange(values[j], values[j+1], dz[k])
                     for val in contour_values:
                         #print(feat, val)
                         ax.contour(X, Z, V, levels = [val], colors = 'Black', linewidths=0.5, linestyles = 'dashed') 
                 
                 # plot contours fror top unit within feature
-                contour_values = np.arange(values[-1], 9999, dz)#val_above+20, 20)
+                contour_values = np.arange(values[-1], 9999, dz[k])#val_above+20, 20)
                 for val in contour_values:
                     #print(feat, val)
                     ax.contour(X, Z, V, levels = [val], colors = 'Black', linewidths=0.5, linestyles = 'dashed') 
