@@ -156,7 +156,10 @@ class Geomodel:
             run_time = t1 - t0
             print('   Time taken Block 1 (Evaluate model) = ', run_time.total_seconds())
 
-    def create_model_layers(self, mesh, structuralmodel, surface):
+    def create_model_layers(self, mesh, structuralmodel, surface, max_thick = None, nls = None):
+
+        self.max_thick = max_thick
+        self.nls = nls
         print('\n2. Creating geo model layers...')
         t0 = datetime.now()
   
@@ -506,6 +509,14 @@ class Geomodel:
         self.ss     = np.empty_like(self.lith_disv, dtype = float)
         self.sy     = np.empty_like(self.lith_disv, dtype = float)
         self.iconvert = np.empty_like(self.lith_disv, dtype = float)
+
+        # Cells in the sky
+        self.k11[self.lith_disv==-1] = 0
+        self.k22[self.lith_disv==-1] = 0
+        self.k33[self.lith_disv==-1] = 0
+        self.ss[self.lith_disv==-1]  = 0
+        self.sy[self.lith_disv==-1]  = 0
+        self.iconvert[self.lith_disv==-1] = 0
 
         for n in range(self.nlg):  # replace lithologies with parameters
             self.k11[self.lith_disv==n] = self.hk_perlay[n] 

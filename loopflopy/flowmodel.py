@@ -103,7 +103,7 @@ class Flowmodel:
         #reload(disv2disu)
         Disv2Disu = disv2disu.Disv2Disu           
          
-        dv2d = Disv2Disu(self.mesh.vertices, self.mesh.cell2d, self.geomodel.top_geo, self.geomodel.botm, staggered=self.staggered, disv_idomain = self.geomodel.idomain,)
+        dv2d = Disv2Disu(self.mesh.vertices, self.mesh.cell2d, self.geomodel.top, self.geomodel.botm, staggered=self.staggered, disv_idomain = self.geomodel.idomain,)
         disu_gridprops = dv2d.get_gridprops_disu6()
         self.disu_gridprops = disu_gridprops.copy()  # Save for later use
         disu = flopy.mf6.ModflowGwfdisu(gwf, **disu_gridprops) # This is the flow package
@@ -225,7 +225,11 @@ class Flowmodel:
             if self.chd == True:
                 chdflow = bud.get_data(text='CHD')[-1]
                 self.chdflow = chdflow
-            
+
+            if self.ghb == True:
+                ghbflow = bud.get_data(text='GHB')[-1]
+                self.ghbflow = ghbflow
+
             if self.obs == True:
                 obs_data = gwf.obs
                 self.obsdata = obs_data
@@ -233,7 +237,7 @@ class Flowmodel:
             self.gwf = gwf
             self.head = head
             self.spd = spd
-            
+            self.qx, self.qy, self.qz = flopy.utils.postprocessing.get_specific_discharge(self.spd, self.gwf)
             self.runtime = run_time.total_seconds()
             
         if success:
@@ -342,9 +346,10 @@ class Flowmodel:
         ax.set_ylabel('y (m)', size = 10)
         plt.colorbar(plan, shrink = 0.4)
            
-        for j in range(spatial.nobs):
-            ax.plot(spatial.xyobsbores[j][0], spatial.xyobsbores[j][1],'o', ms = '4', c = 'black')
-            #ax.annotate(spatial.idobsbores[j], (spatial.xyobsbores[j][0], spatial.xyobsbores[j][1]+100), c='black', size = 10) #, weight = 'bold')
+        if hasattr(spatial, 'xyobsbores'):
+            for j in range(spatial.nobs):
+                ax.plot(spatial.xyobsbores[j][0], spatial.xyobsbores[j][1],'o', ms = '4', c = 'black')
+                #ax.annotate(spatial.idobsbores[j], (spatial.xyobsbores[j][0], spatial.xyobsbores[j][1]+100), c='black', size = 10) #, weight = 'bold')
         
         for j in range(spatial.npump):
             ax.plot(spatial.xypumpbores[j][0], spatial.xypumpbores[j][1],'o', ms = '4', c = 'red')
@@ -385,35 +390,38 @@ class Flowmodel:
         plt.tight_layout() 
         plt.savefig('../figures/plan_%s.png' % array)
 
-    def plot_transect(self, spatial, structuralmodel, array, 
-                      vmin = None, vmax = None, vectors = None,
+    def plot_transect(self, spatial, geomodel, array, title = None,
+                      vmin = None, vmax = None, vectors = None, kstep = None, hstep = None, normalize = True,
                       **kwargs): # array needs to be a string of a property eg. 'k11', 'angle2'
         x0 = kwargs.get('x0', spatial.x0)
         y0 = kwargs.get('y0', spatial.y0)
-        z0 = kwargs.get('z0', structuralmodel.z0)
         x1 = kwargs.get('x1', spatial.x1)
         y1 = kwargs.get('y1', spatial.y1)
-        z1 = kwargs.get('z1', structuralmodel.z1)
+        z0 = kwargs.get('z0', geomodel.z0)
+        z1 = kwargs.get('z1', geomodel.z1)
     
         fig = plt.figure(figsize = (8,3))
         ax = plt.subplot(111)
-        ax.set_title(self.scenario, size = 10)
+        
+        if title is not None:
+            ax.set_title(title, size = 10)
       
         xsect = flopy.plot.PlotCrossSection(model=self.gwf, line={"line": [(x0, y0),(x1, y1)]}, 
-                                            #extent = [P.x0,P.x1,P.z0,P.z1], 
+                                            extent = [x0, x1, z0, z1], 
                                             geographic_coords=True)
         xsect.plot_grid(lw = 0.5, color = 'black') 
         csa = xsect.plot_array(a = getattr(self, array), cmap = 'Spectral', alpha=0.8, vmin = vmin, vmax = vmax)
-        #if vectors:
-        #    #import flopy
-        #    qx, qy, qz = flopy.utils.postprocessing.get_specific_discharge(self.spd, self.gwf)
-        #  
-        #    xsect.plot_vector(qx, qy, qz, scale=1., normalize=True, color="black")
+        if vectors:
+            xsect.plot_vector(self.qx, self.qy, self.qz, 
+                              kstep = kstep,
+                              hstep = hstep,
+                              normalize=normalize, 
+                              color="black")
         
         ax.set_xlabel('x (m)', size = 10)
         ax.set_ylabel('z (m)', size = 10)
         ax.set_ylim([z0,z1])
-        plt.colorbar(csa, shrink = 0.4)
+        plt.colorbar(csa, shrink = 0.6)
 
         plt.tight_layout()  
         plt.savefig('../figures/transect_%s.png' % array)

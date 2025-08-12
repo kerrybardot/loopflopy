@@ -272,3 +272,53 @@ def plot_node(node, geomodel, structuralmodel, spatial, sim, scenario, features,
     plt.tight_layout()  
     plt.savefig('../figures/problem_node_%i_plan.png' %(node))
     plt.show()  
+
+
+def plot_node_transect(node, geomodel, structuralmodel, spatial, sim, scenario, features, **kwargs): # array needs to be a string of a property eg. 'k11', 'angle2'
+    x0 = kwargs.get('x0', spatial.x0)
+    y0 = kwargs.get('y0', spatial.y0)
+    z0 = kwargs.get('z0', geomodel.z0)
+    x1 = kwargs.get('x1', spatial.x1)
+    y1 = kwargs.get('y1', spatial.y1)
+    z1 = kwargs.get('z1', geomodel.z1)
+    vmin = kwargs.get('vmin', None)
+    vmax = kwargs.get('vmax', None)
+
+    x, y, z = disucell_to_xyz(geomodel, node)
+    
+    print("Node one based = ", node + 1, "Node zero based = ", node)
+    print("XYZ problem = ", x,y,z)
+
+    gwf = sim.get_model(scenario)
+    xv = gwf.modelgrid.xyzvertices[0][node]
+    yv = gwf.modelgrid.xyzvertices[1][node]
+    zv_top = gwf.modelgrid.xyzvertices[2][0][node]
+    zv_bot = gwf.modelgrid.xyzvertices[2][1][node]
+    xv, yv, zv_top, zv_bot
+    print('cell width approx ', max(xv) - min(xv))
+    print('cell length approx ', max(yv) - min(yv))
+    print('cell thickness', zv_top - zv_bot)
+    print('lay, icpl', disucell_to_layicpl(geomodel, node))
+
+    #a = gwf.npf.k.get_data()
+    a = geomodel.lith
+    labels = structuralmodel.strat_names[1:]
+    ticks = [i for i in np.arange(0,len(labels))]
+    boundaries = np.arange(-1,len(labels),1)+0.5   
+
+    fig = plt.figure(figsize = (10,3))
+    ax = plt.subplot(111)
+    ax.set_title("West-East Transect\nY =  %i" %(y))
+    xsect = flopy.plot.PlotCrossSection(modelgrid=gwf.modelgrid, line={"line": [(spatial.x0, y),(spatial.x1, y)]},
+                                        extent = [x0,x1,z0,z1], geographic_coords=True)
+
+
+    csa = xsect.plot_array(a = a, cmap = structuralmodel.cmap, norm = structuralmodel.norm, 
+                           alpha=0.8, vmin = vmin, vmax = vmax)
+    
+    ax.plot(x, z, 'o', color = 'red')
+    ax.set_xlabel('x (m)', size = 10)
+    ax.set_ylabel('z (m)', size = 10)
+    linecollection = xsect.plot_grid(lw = 0.1, color = 'black') 
+    
+    
