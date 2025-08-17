@@ -10,12 +10,23 @@ import geopandas as gpd
 
 logfunc = lambda e: np.log10(e)
 
+def find_angle1_transect(u, rotation_angle):
+    return rotation_angle
+
+def find_angle2_transect(u, rotation_angle):
+    
+    n = np.array([np.tan(math.radians(rotation_angle)), -1, 0])
+    mag_n = np.linalg.norm(n) # magnitude of normal vector
+    proj = u - (np.dot(u, n)/mag_n**2)*n # Convert n to numpy array
+    angle2 = np.degrees(math.atan(proj[2]/proj[0]))
+    return angle2
+
 # angle 1 (DIP DIRECTION) rotates around z axis counterclockwise looking from +ve z.
 def find_angle1(nv): # nv = normal vector to surface
+
     # The dot product of perpencicular vectors = 0
     # A vector perpendicular to nv would be [a,b,c]
-    import numpy as np
-    import math
+
     if nv[2] == 0:
         angle1 = 0.
     else:
@@ -39,9 +50,8 @@ def find_angle1(nv): # nv = normal vector to surface
 def find_angle2(nv): # nv = normal vector to surface
     # The dot product of perpencicular vectors = 0
     # A vector perpendicular to nv would be [a,b,c]
-    import numpy as np
-    import math
-    if nv[2] == 0:
+
+    if nv[2] == 1 | nv[2] == 0: # Can't be vertical or have no magnitude 
         angle2 = 0.
     else:
         a = nv[0]
@@ -108,7 +118,7 @@ class Geomodel:
             print('   len(xyz) = ', len(xyz))  
             litho = structuralmodel.model.evaluate_model(xyz)  # generates an array indicating lithology for every cell
             vf = structuralmodel.model.evaluate_model_gradient(xyz) # generates an array indicating gradient for every cell
-            
+            print(vf[3000:3020])
             # Reshape to lay, ncpl   
             litho = np.asarray(litho)
             litho = litho.reshape((self.nlay, mesh.ncpl))
@@ -117,9 +127,14 @@ class Geomodel:
             self.lith_disv = litho
             
             ang1, ang2 = [], []
-            for i in range(len(vf)):  
-                ang1.append(find_angle1(vf[i]))
-                ang2.append(find_angle2(vf[i]))
+            if self.transect:
+                for i in range(len(vf)):  
+                    ang1.append(find_angle1_transect(vf[i], self.rotation_angle))
+                    ang2.append(find_angle2_transect(vf[i], self.rotation_angle))
+            else:
+                for i in range(len(vf)):  
+                    ang1.append(find_angle1(vf[i]))
+                    ang2.append(find_angle2(vf[i]))
             self.ang1  = reshape_loop2mf(np.asarray(ang1), self.nlay, mesh.ncpl)
             self.ang2  = reshape_loop2mf(np.asarray(ang2), self.nlay, mesh.ncpl)
             
@@ -211,12 +226,13 @@ class Geomodel:
             idomain_geo = np.zeros((self.nlg, mesh.ncpl), dtype=float)      # idomain array for each lithology
             
             stop_array = np.zeros((self.nlg+1, mesh.ncpl), dtype=float)
-            #print('stop_array shape', stop_array .shape )
+            print('stop_array shape', stop_array .shape )
             V = self.litho
             W = V[1:, :] - V[:-1, :] 
+            print(np.unique(W, return_counts=True))
 
             if np.any(W < 0):
-                #print(f'Geology repeats itself {np.sum(W < 0)} times at {np.where(W < 0)}')
+                print(f'***Geology repeats itself {np.sum(W < 0)} times at {np.where(W < 0)}*****')
                 W[W < 0] = 0 # this is to handle instances where geology goes in reverse order (back to a younger sequence)
 
             print('   nlay = ', nlay)
@@ -224,35 +240,35 @@ class Geomodel:
             print('   nlg number of geo layers = ', self.nlg)
 
             for icpl in range(mesh.ncpl):
-                #print('ICPL = ', icpl)
-                #if icpl == 29:
-                #    print('Pillar lithologies ', V[:,icpl])
-                #    print('V - V ', V[1:, icpl] - V[:-1, icpl])
-
+                print('ICPL = ', icpl)
+                if icpl == 73:
+                    print('Pillar lithologies ', V[:,icpl])
+                    print('V - V ', V[1:, icpl] - V[:-1, icpl])
+                    print('W ', W[:, icpl])
                 # IDOMAIN
                 present = np.unique(V[:,icpl])
+                print('present: ', present)
                 for p in present:
                     if p >= 0: # don't include above ground 
                         idomain_geo[p, icpl] = 1
                 
                 stop = np.array([nlay-1]) # Add the last layer to start with
-                #print('line 225 stop ', stop)
+                print('line 239 stop ', stop)
                 for i in range(1,self.nlg): 
                     
-                    #idx = np.where(V[1:, icpl] - V[:-1, icpl] == i)[0] # checking if different from row above
                     idx = np.where(W[:,icpl] == i)[0] # checking if different from row above
                     # e.g. if i =  3 and idx =  [146 199], then it skips 3 layers TWICE!
                     if idx.size != 0: # If there returns an index
-                        #print('geo layer = ', i, 'index where lith changes = ', idx)
+                        print('geo layer = ', i, 'index where lith changes = ', idx)
                         
                         for id in idx:
-                            #if icpl == 297: print('id = ', id, 'idx = ', idx, 'np.ones(i) = ', np.ones(i))
+                            if icpl == 73: print('id = ', id, 'idx = ', idx, 'np.ones(i) = ', np.ones(i))
                             idx_array = id * np.ones(i)
                             stop = np.concatenate((stop, idx_array))
     
                 n = self.nlg+1 - len(stop)# number of pinched out layers at the bottom not yet added to stop array
-                #print('number of pinched out layers at the bottom not yet added to stop array = ', n)
-                #print('stop  ', stop)
+                print('number of pinched out layers at the bottom not yet added to stop array = ', n)
+                print('stop  ', stop)
                 m = (nlay-1) * np.ones(n) # this is just accounting for the bottom geo layers that dont exist in pillar
                 stop = np.concatenate((stop, m))
 
@@ -452,9 +468,14 @@ class Geomodel:
             vf = structuralmodel.model.evaluate_model_gradient(xyz) # generates an array indicating gradient for every cell
             
             ang1, ang2 = [], []
-            for i in range(len(vf)):  
-                ang1.append(find_angle1(vf[i]))
-                ang2.append(find_angle2(vf[i]))
+            if self.transect:
+                for i in range(len(vf)):  
+                    ang1.append(find_angle1_transect(vf[i], self.rotation_angle))
+                    ang2.append(find_angle2_transect(vf[i], self.rotation_angle))
+            else:
+                for i in range(len(vf)):  
+                    ang1.append(find_angle1(vf[i]))
+                    ang2.append(find_angle2(vf[i]))
 
             self.ang1  = reshape_loop2mf(np.asarray(ang1), self.botm.shape[0], self.botm.shape[1])
             self.ang2  = reshape_loop2mf(np.asarray(ang2), self.botm.shape[0], self.botm.shape[1])

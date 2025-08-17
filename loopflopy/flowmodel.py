@@ -30,6 +30,7 @@ class Flowmodel:
                         wel = False, 
                         ghb = False, 
                         evt = False, 
+                        zbud = False,
                         newtonoptions = ['UNDER_RELAXATION'], 
                         **kwargs):
 
@@ -114,10 +115,10 @@ class Flowmodel:
                                                        k = self.geomodel.k11, 
                                                        k22  = self.geomodel.k22, 
                                                        k33  = self.geomodel.k33, 
-                                                       angle1 = self.geomodel.angle1, 
-                                                       angle2 = self.geomodel.angle2,
-                                                       angle3 = self.geomodel.angle3, 
-                                                       #angle1 = 0., angle2 = 0., angle3 = 0.,
+                                                       #angle1 = self.geomodel.angle1, 
+                                                       #angle2 = self.geomodel.angle2,
+                                                       #angle3 = self.geomodel.angle3, 
+                                                       angle1 = 0., angle2 = 0., angle3 = 0.,
                                                        icelltype = self.geomodel.iconvert,
                                                        save_flows = True, 
                                                        save_specific_discharge = True,)
@@ -154,12 +155,6 @@ class Flowmodel:
                                                            maxbound = len(self.data.chd_rec),
                                                            stress_period_data = self.data.chd_rec,)
         
-        # -------------- CHD-------------------------
-        if self.chd:
-            
-            chd = flopy.mf6.modflow.mfgwfchd.ModflowGwfchd(gwf, 
-                                                           maxbound = len(self.data.chd_rec),
-                                                           stress_period_data = self.data.chd_rec,)
         # -------------- RCH-------------------------
         if self.rch:
             rch = flopy.mf6.modflow.mfgwfrch.ModflowGwfrch(gwf, 
@@ -184,6 +179,7 @@ class Flowmodel:
                                           filename=self.scenario, 
                                           print_input=True, 
                                           continuous={csv_file: self.observations.obs_rec},) 
+        
         # ------------ OC ---------------------------------
         oc = flopy.mf6.ModflowGwfoc(gwf, 
                                     budget_filerecord='{}.bud'.format(self.scenario), 
@@ -195,20 +191,22 @@ class Flowmodel:
             
         sim.write_simulation(silent = True)   
         run_time = datetime.now() - t0
-        print('   Time taken to write flow model = ', run_time.total_seconds())
+        print('Time taken to write flow model = ', run_time.total_seconds())
 
          # --------------------------------------------------------
         return(sim)
 
-    def run_flowmodel(self, sim, transient = False):
+    def run_flowmodel(self, sim, transient = False, zone_budget =False, zone_array = None):
     
         t0 = datetime.now()
+        self.zone_budget = zone_budget
+        self.zone_array = zone_array
         print('Running simulation for ', self.scenario, ' ...')
 
         success, buff = sim.run_simulation(silent = True)   
         print('Model success = ', success)
         run_time = datetime.now() - t0
-        print('   run_time = ', run_time.total_seconds())
+        print('run_time = ', run_time.total_seconds())
         
         def process_results():
                         
@@ -234,6 +232,12 @@ class Flowmodel:
                 obs_data = gwf.obs
                 self.obsdata = obs_data
 
+            if self.zone_budget == True:
+                zb = flopy.utils.ZoneBudget(bud, self.zone_array, model=gwf) # Instantiate the ZoneBudget object
+                zone_budget = zb.get_budget() # Get the budget for each zone
+                for record in zone_budget: # Print the budget
+                    print(record)
+
             self.gwf = gwf
             self.head = head
             self.spd = spd
@@ -244,7 +248,7 @@ class Flowmodel:
             process_results()
 
         else:
-            print('   Re-writing IMS - Take 2')
+            print('\nRe-writing IMS - Take 2')
             sim.remove_package(package_name='ims')
             
             ims = flopy.mf6.ModflowIms(sim, print_option='ALL', 
@@ -271,7 +275,7 @@ class Flowmodel:
      
             
             else:
-                print('   Re-writing IMS - Take 3')
+                print('\nRe-writing IMS - Take 3')
                 
                 if transient:   # Increase number of timesteps to help convergence
                     future_years = 5
@@ -390,7 +394,7 @@ class Flowmodel:
         plt.tight_layout() 
         plt.savefig('../figures/plan_%s.png' % array)
 
-    def plot_transect(self, spatial, geomodel, array, title = None,
+    def plot_transect(self, spatial, geomodel, array, title = None, grid = True,
                       vmin = None, vmax = None, vectors = None, kstep = None, hstep = None, normalize = True,
                       **kwargs): # array needs to be a string of a property eg. 'k11', 'angle2'
         x0 = kwargs.get('x0', spatial.x0)
@@ -409,7 +413,8 @@ class Flowmodel:
         xsect = flopy.plot.PlotCrossSection(model=self.gwf, line={"line": [(x0, y0),(x1, y1)]}, 
                                             extent = [x0, x1, z0, z1], 
                                             geographic_coords=True)
-        xsect.plot_grid(lw = 0.5, color = 'black') 
+        if grid:
+            xsect.plot_grid(lw = 0.5, color = 'black') 
         csa = xsect.plot_array(a = getattr(self, array), cmap = 'Spectral', alpha=0.8, vmin = vmin, vmax = vmax)
         if vectors:
             xsect.plot_vector(self.qx, self.qy, self.qz, 

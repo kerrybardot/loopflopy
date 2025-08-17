@@ -6,7 +6,7 @@ class Spatial:
     def __init__(self, epsg):       
         self.epsg = epsg
         self.crs = epsg
-        print("hi nina")
+
 # -----------------------------------------------
 
 
