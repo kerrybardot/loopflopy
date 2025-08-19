@@ -10,61 +10,81 @@ import geopandas as gpd
 
 logfunc = lambda e: np.log10(e)
 
-def find_angle1_transect(u, rotation_angle):
+def find_angle1_transect(nv, rotation_angle):
     return rotation_angle
 
-def find_angle2_transect(u, rotation_angle):
-    
-    n = np.array([np.tan(math.radians(rotation_angle)), -1, 0])
-    mag_n = np.linalg.norm(n) # magnitude of normal vector
-    proj = u - (np.dot(u, n)/mag_n**2)*n # Convert n to numpy array
-    angle2 = np.degrees(math.atan(proj[2]/proj[0]))
+def find_angle2_transect(nv, rotation_angle):
+
+    # normal vector (nv) to tangent plane (from Loop)
+    n = np.array([np.tan(math.radians(rotation_angle)), 1, 0])  # Normal vector to transect- check this!!
+    cp = np.cross(nv, n)  # Cross product to find the plane normal
+    angle2 = np.degrees(math.atan(cp[2]/cp[0]))
     return angle2
 
 # angle 1 (DIP DIRECTION) rotates around z axis counterclockwise looking from +ve z.
 def find_angle1(nv): # nv = normal vector to surface
+    a, b, c = nv[0], nv[1], nv[2]
 
-    # The dot product of perpencicular vectors = 0
-    # A vector perpendicular to nv would be [a,b,c]
+    # Find steepest descent gradient (g) in the x-y plane (Angle 1)
+    g = np.array([-a/c, b/c])
+    angle1 = np.degrees(np.arctan2(g[1], g[0])) # angle in xy plane (anticlockwise)
+    return angle1
 
-    if nv[2] == 0:
-        angle1 = 0.
-    else:
-        a = nv[0]
-        b = nv[1]
-        c = -(a*nv[0]+b*nv[1])/nv[2]
-        v = [a,b,c]
-        if np.isnan(v[0]) == True or np.isnan(v[1]) == True: 
-            angle1 = 0.
-        if v[0] == 0.:
-            if v[1] > 0:
-                angle1 = 90
-            else:
-                angle1 = -90
-        else:             
-            tantheta = v[1]/v[0] 
-            angle1 = np.degrees(math.atan(tantheta))
-    return(angle1)
-
-# angle 2 (DIP) rotates around y axis clockwise looking from +ve y.
 def find_angle2(nv): # nv = normal vector to surface
-    # The dot product of perpencicular vectors = 0
-    # A vector perpendicular to nv would be [a,b,c]
+    a, b, c = nv[0], nv[1], nv[2]
 
-    if nv[2] == 1 | nv[2] == 0: # Can't be vertical or have no magnitude 
-        angle2 = 0.
-    else:
-        a = nv[0]
-        b = nv[1]
-        c = -(a*nv[0]+b*nv[1])/nv[2]
-        v = [a,b,c]
-        if np.isnan(v[0]) == True or np.isnan(v[1]) == True or np.isnan(v[2]) == True:
-            angle2 = 0.
-        else:
-            v_mag = (v[0]**2 + v[1]**2 + v[2]**2)**0.5 
-            costheta = v[2]/v_mag
-            angle2 = 90-np.degrees(math.acos(costheta)) 
-    return(angle2)
+    # Find steepest descent gradient (g) in the x-y plane (Angle 1)
+    g = np.array([-a/c, b/c])
+
+    # Find the Dip angle in the z direction (Angle 2)
+    magnitude = np.linalg.norm(g)
+    angle2 = np.degrees(np.arctan(np.sqrt(a**2 + b**2)/np.abs(c)))
+    return angle2
+
+# # angle 1 (DIP DIRECTION) rotates around z axis counterclockwise looking from +ve z.
+# def find_angle1(nv): # nv = normal vector to surface
+
+#     # The dot product of perpencicular vectors = 0
+#     # A vector perpendicular to nv would be [a,b,c]
+
+#     if nv[2] == 0:
+#         angle1 = 0.
+#     else:
+#         a = nv[0]
+#         b = nv[1]
+#         c = -(a*nv[0]+b*nv[1])/nv[2]
+#         v = [a,b,c]
+#         if np.isnan(v[0]) == True or np.isnan(v[1]) == True: 
+#             angle1 = 0.
+#         if v[0] == 0.:
+#             if v[1] > 0:
+#                 angle1 = 90
+#             else:
+#                 angle1 = -90
+#         else:             
+#             tantheta = v[1]/v[0] 
+#             angle1 = np.degrees(math.atan(tantheta))
+#     return(angle1)
+
+# # angle 2 (DIP) rotates around y axis clockwise looking from +ve y.
+# def find_angle2(nv): # nv = normal vector to surface
+#     # The dot product of perpencicular vectors = 0
+#     # A vector perpendicular to nv would be [a,b,c]
+
+#     if nv[2] == 1 | nv[2] == 0: # Can't be vertical or have no magnitude 
+#         angle2 = 0.
+#     else:
+#         a = nv[0]
+#         b = nv[1]
+#         c = -(a*nv[0]+b*nv[1])/nv[2]
+#         v = [a,b,c]
+#         if np.isnan(v[0]) == True or np.isnan(v[1]) == True or np.isnan(v[2]) == True:
+#             angle2 = 0.
+#         else:
+#             v_mag = (v[0]**2 + v[1]**2 + v[2]**2)**0.5 
+#             costheta = v[2]/v_mag
+#             angle2 = 90-np.degrees(math.acos(costheta)) 
+#     return(angle2)
 
 def reshape_loop2mf(array, nlay, ncpl):
     array = array.reshape((nlay, ncpl))
@@ -118,7 +138,7 @@ class Geomodel:
             print('   len(xyz) = ', len(xyz))  
             litho = structuralmodel.model.evaluate_model(xyz)  # generates an array indicating lithology for every cell
             vf = structuralmodel.model.evaluate_model_gradient(xyz) # generates an array indicating gradient for every cell
-            print(vf[3000:3020])
+
             # Reshape to lay, ncpl   
             litho = np.asarray(litho)
             litho = litho.reshape((self.nlay, mesh.ncpl))
