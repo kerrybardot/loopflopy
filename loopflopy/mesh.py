@@ -132,7 +132,7 @@ class Mesh:
                 print("polygon ", n, " needs to be a Shapely Polygon")
             
     
-    def create_mesh(self, spatial):
+    def create_mesh(self, project, spatial):
 
         if self.plangrid == 'car':
             print("Creating structured grid")
@@ -249,6 +249,18 @@ class Mesh:
             self.vor = VoronoiGrid(tri)
             self.vertices = self.vor.get_disv_gridprops()['vertices']
             self.cell2d = self.vor.get_disv_gridprops()['cell2d']
+
+            # Check northernmost cell centre not on the boundary, if so, shift down
+            yc = [row[2] for row in self.cell2d]
+            max_yc = np.max(yc)           
+            bounds = spatial.model_boundary_poly.bounds # Get the bounds of the polygon (minx, miny, maxx, maxy)
+            max_ybound = bounds[3]  # maxy is at index 3
+
+            if max_yc >= max_ybound:
+                index = np.where(yc >= max_yc)[0][0]
+                print(f'Cell {index} is on the model boundary. Moving down by 0.1m')
+                self.cell2d[index][2] -= 0.1  
+
             self.ncpl = len(self.cell2d)
             self.idomain = np.ones((self.ncpl))            
             self.vgrid = flopy.discretization.VertexGrid(vertices=self.vertices, cell2d=self.cell2d, ncpl = self.ncpl, nlay = 1)
@@ -478,10 +490,8 @@ class Mesh:
 
         plt.savefig('../figures/mesh.png')
             
-    def plot_feature_cells(self, spatial, xlim = None, ylim = None): # e.g xlim = [700000, 707500]
+    def plot_feature_cells(self, spatial, xlim = None, ylim = None, plot_grid = False): # e.g xlim = [700000, 707500]
         
-
-
         fig = plt.figure(figsize=(7,5))
         spec = gridspec.GridSpec(nrows=1, ncols=2, width_ratios=[1, 0.05], wspace=0.2)
 
@@ -491,7 +501,11 @@ class Mesh:
         ax.set_title('Special cells')
             
         pmv = flopy.plot.PlotMapView(ax = ax, modelgrid=self.vgrid)
-        pmv.plot_grid(color = 'gray', lw = 0.4)
+        
+        if plot_grid: 
+            pmv.plot_grid(color = 'gray', lw = 0.4)
+        else:
+            pmv.plot_grid(visible=False)
 
         unique_ibd = np.unique(self.ibd)
         print(unique_ibd)
@@ -544,19 +558,19 @@ class Mesh:
         plt.savefig('../figures/special_cells.png')
 
     def plot_surface_array(self, array, structuralmodel, plot_data = False, lithcode = None,
-                           vmin = None, vmax = None, levels = None, title = None):
+                           vmin = None, vmax = None, plot_grid = False, levels = None, title = None):
         
-        fig = plt.figure(figsize=(10,10))
+        fig = plt.figure(figsize=(7,7))
         ax = fig.add_subplot()
         if title: ax.set_title(title)
         
-        # plot grid
         pmv = flopy.plot.PlotMapView(modelgrid=self.vgrid)
-        
-        # plot array
         t = pmv.plot_array(array, vmin = vmin, vmax = vmax)
         cbar = plt.colorbar(t, shrink = 0.5)  
         cg = pmv.contour_array(array, levels=levels, linewidths=0.8, colors="0.75")
+
+        if plot_grid == False:
+            pmv.plot_grid(visible = False)
         
         if plot_data:# Plot raw data points
             df = structuralmodel.data
@@ -586,3 +600,23 @@ class Mesh:
                 polygons.append(polygon)
 
             self.gdf = gpd.GeoDataFrame(geometry=polygons)'''
+    
+    def plot_array(self, array, 
+                   vmin = None, 
+                   vmax = None, 
+                   levels = None, 
+                   title = None, 
+                   xlim = None, ylim = None,
+                   xy = None):
+        
+        fig = plt.figure(figsize=(7,7))
+        ax = fig.add_subplot()
+        if title: ax.set_title(title)
+        pmv = flopy.plot.PlotMapView(modelgrid=self.vgrid)
+        t = pmv.plot_array(array, vmin = vmin, vmax = vmax)
+        cbar = plt.colorbar(t, shrink = 0.5)  
+        #cg = pmv.contour_array(array, levels=levels, linewidths=0.8, colors="0.75")
+        if xy:# Plot points
+            ax.plot(xy[0], xy[1], 'o', ms = 2, color = 'red')
+        if xlim: ax.set_xlim(xlim) 
+        if ylim: ax.set_ylim(ylim) 

@@ -135,7 +135,7 @@ def xyz_to_disvcell(geomodel, x,y,z): # zerobased
 # Writing and processing MODFLOW arrays
 
 def write_input_files(gwf,modelname):
-    import flopy
+
     headfile = '{}.hds'.format(modelname)
     head_filerecord = [headfile]
     budgetfile = '{}.bud'.format(modelname)
@@ -152,8 +152,7 @@ def ch_flow(chdflow):
     return((flow_in, flow_out))
 
 def get_q_disu(d2d, spd, flowja, gwf, staggered):
-    import math
-    import flopy
+
     qx, qy, qz = flopy.utils.postprocessing.get_specific_discharge(spd, gwf)
     # if cross-connections, recalculate qx taking into account overlap areas
     if staggered:

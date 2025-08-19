@@ -216,7 +216,7 @@ class Geomodel:
                     
                     print('len filtered z ', len(filtered_z), ' i.e. without NaN or inf')
                     surface = griddata(filtered_points, filtered_z, (mesh.xc, mesh.yc), method='nearest')#'linear', fill_value=-1)
-                    print(np.unique(surface, return_counts=True))
+                    #print(np.unique(surface, return_counts=True))
 
                     surfaces.append(surface)
                 return surfaces
@@ -236,21 +236,53 @@ class Geomodel:
             print('top_geo shape', top_geo.shape)
             print('botm_geo', botm_geo.shape)
             
-            # Here we make sure that the bottom of the first layer is below the ground surface
-            # And if not, we make it equal to the ground surface!
-            # This is a bit cheating, as if the top layer is not there, I've made it 1m thick
-            # Only because I'm not sure my code can cope with pinched out layers in the top layer - to be fixed later!
-            new_array = np.where(top_geo - botm_geo[0] < 0, top_geo-1, botm_geo[0]) 
-            botm_geo[0] = new_array
             
-            # Here we need to flag where there are pinched out cells in the top layer.
-            new_array = np.where(top_geo - botm_geo[0] <= 0, 0, 1) # if the botm of the first layer is above groundsurface, make idomain 0
-            idomain_geo[0] = new_array
+            # --- Now we have to check that there are no cells with top < botm
+            # --- If so, we need to replace thickness with nearest nieghbour
+            def find_nearest_bestest_neighbour(mesh, thickness, cellid, top_lay, bot_lay):
+                x, y = mesh.xc[cellid], mesh.yc[cellid]
+                distance = np.array([np.sqrt((mesh.xc[i]-x)**2 + (mesh.yc[i]-y)**2) for i in range(mesh.ncpl)])
+                
+                # FIND THE NEAREST. Mask where distance == 0 (the cell itself)
+                masked_distance = np.ma.masked_where(distance == 0, distance)
 
-            # Here we need to flag where there are pinched out cells for all other layers.
-            for i in range(1,self.nlg):
-                new_array = np.where(botm_geo[i-1] - botm_geo[i] <= 0, 0, 1)
-                idomain_geo[i] = new_array # if the top of the layer is above the bottom of the layer, make idomain 0
+                # FIND THE BESTEST. Mask where groundsurface below bottom surface
+                masked = np.ma.masked_where(thickness <=0 , masked_distance)
+                
+                # Find the minimum distance excluding the masked values
+                idx = np.where(distance == np.min(masked))[0][0]
+
+                return idx
+                       
+            # This method assumes no pinchouts
+            count = 0
+            for geolay in range(self.nlg):
+                if geolay == 0:
+                    for icpl in range(mesh.ncpl):
+                        thickness = top_geo - botm_geo[geolay]
+                        if thickness[icpl] <= 0: # if the bottom if above ground surface...
+                            nncell = find_nearest_bestest_neighbour(mesh, thickness, icpl, top_geo, botm_geo[geolay]) # find nearest neighbour..
+                            botm_geo[geolay][icpl] = top_geo[icpl] - thickness[nncell] # make the negative thickness cell have the same thickness as neighbouring cell                          
+                            count += 1
+                else:
+                    thickness = botm_geo[geolay-1] - botm_geo[geolay]
+                    for icpl in range(mesh.ncpl):
+                        if thickness[icpl] <= 0: # if the bottom if above ground surface...
+                            nncell = find_nearest_bestest_neighbour(mesh, thickness, icpl, botm_geo[geolay-1], botm_geo[geolay]) # find nearest neighbour..
+                            botm_geo[geolay][icpl] = botm_geo[geolay-1][icpl] - thickness[nncell] # make the negative thickness cell have the same thickness as neighbouring cell
+                            #print(f'Cell id {icpl} has negative thickness. Replacing geo bottom with cell {nncell}')
+                            count += 1
+
+            print('\nNumber of cells with negative thickness that have been converted= ', count)
+            print('min thickness = ', np.min(top_geo - botm_geo[geolay]), 'max thickness = ', np.max(top_geo - botm_geo[geolay]),'\n')
+
+            # NEED TO WORK ON THIS IN FUTURE, USER CAN CHOOSE WHAT TO DO FOR PINCHOUTS!!!
+            # Or we can pinchout the layers where missing???
+            #new_array = np.where(top_geo - botm_geo[0] <= 0, 0, 1)
+            #idomain_geo[0] = new_array
+            #for i in range(1,self.nlg):
+            #    new_array = np.where(botm_geo[i-1] - botm_geo[i] <= 0, 0, 1)
+            #    idomain_geo[i] = new_array # if the top of the layer is above the bottom of the layer, make idomain 0
 
             t1 = datetime.now()
             run_time = t1 - t0
@@ -602,6 +634,7 @@ class Geomodel:
 
         fig = plt.figure(figsize = (10, 6))
         ax = plt.subplot(111)
+
         ax.set_aspect('equal')
         ax.set_title('surface geology', size = 10)
 
@@ -616,8 +649,7 @@ class Geomodel:
         ticks = [i for i in np.arange(0,len(labels))]
         boundaries = np.arange(-1,len(labels),1)+0.5       
         
-        
-        # Create interpolation grid
+                # Create interpolation grid
         x = np.linspace(spatial.x0-100, spatial.x1+100, 1000)
         y = np.linspace(spatial.y0-100, spatial.y1+100, 1000)
         X, Y = np.meshgrid(x, y)
@@ -646,7 +678,7 @@ class Geomodel:
         gdf = gpd.GeoDataFrame(geometry=contour_lines, crs = spatial.epsg)
         gdf.to_file('../data/data_shp/geomodel_surface_contours.shp', driver='ESRI Shapefile')
 
-    def geomodel_transect_lith(self, structuralmodel, spatial, **kwargs):
+    def geomodel_transect_lith(self, structuralmodel, spatial, aspect=5, **kwargs):
         x0 = kwargs.get('x0', spatial.x0)
         y0 = kwargs.get('y0', spatial.y0)
         z0 = kwargs.get('z0', self.z0)
@@ -656,6 +688,7 @@ class Geomodel:
     
         fig = plt.figure(figsize = (12,4))
         ax = plt.subplot(111)
+        ax.set_aspect(aspect=aspect)
         xsect = flopy.plot.PlotCrossSection(modelgrid=self.vgrid , line={"line": [(x0, y0),(x1, y1)]}, geographic_coords=True)
         csa = xsect.plot_array(a = self.lith_disv, cmap = structuralmodel.cmap, norm = structuralmodel.norm, alpha=0.8)
         ax.set_xlabel('x (m)', size = 10)
@@ -670,7 +703,7 @@ class Geomodel:
 
         cbar = plt.colorbar(csa,
                             boundaries = boundaries,
-                            shrink = 1.0
+                            shrink = 0.4
                             )
         cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 8, verticalalignment = 'center')    
         plt.title(f"x0, x1, y0, y1 = {x0:.0f}, {x1:.0f}, {y0:.0f}, {y1:.0f}", size=8)

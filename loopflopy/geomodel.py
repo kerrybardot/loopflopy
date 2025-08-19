@@ -7,6 +7,7 @@ import matplotlib.colors
 from scipy.interpolate import griddata
 from shapely.geometry import LineString
 import geopandas as gpd
+import loopflopy.utils as utils
 
 logfunc = lambda e: np.log10(e)
 
@@ -695,7 +696,7 @@ class Geomodel:
         gdf = gpd.GeoDataFrame(geometry=contour_lines, crs = spatial.epsg)
         gdf.to_file('../data/data_shp/geomodel_surface_contours.shp', driver='ESRI Shapefile')
 
-    def geomodel_transect_lith(self, structuralmodel, spatial, **kwargs):
+    def geomodel_transect_lith(self, structuralmodel, spatial, plot_node = None, **kwargs):
         x0 = kwargs.get('x0', spatial.x0)
         y0 = kwargs.get('y0', spatial.y0)
         z0 = kwargs.get('z0', self.z0)
@@ -705,6 +706,7 @@ class Geomodel:
     
         fig = plt.figure(figsize = (12,4))
         ax = plt.subplot(111)
+        #ax.set_aspect('equal')
         xsect = flopy.plot.PlotCrossSection(modelgrid=self.vgrid , line={"line": [(x0, y0),(x1, y1)]}, geographic_coords=True)
         csa = xsect.plot_array(a = self.lith_disv, cmap = structuralmodel.cmap, norm = structuralmodel.norm, alpha=0.8)
         ax.set_xlabel('x (m)', size = 10)
@@ -712,6 +714,10 @@ class Geomodel:
         ax.set_ylim([z0, z1])
   
         linecollection = xsect.plot_grid(lw = 0.1, color = 'black') 
+
+        if plot_node != None:
+            x, y, z = utils.disucell_to_xyz(self, plot_node)
+            ax.plot(x, z)
         
         labels = structuralmodel.strat_names[1:]
         ticks = [i for i in np.arange(0,len(labels))]
@@ -724,7 +730,6 @@ class Geomodel:
         cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 8, verticalalignment = 'center')    
         plt.title(f"x0, y0 = {x0:.0f}, {x1:.0f}: x1, y1 = {y0:.0f}, {y1:.0f}", size=8)
         plt.tight_layout()  
-        plt.savefig('../figures/geomodel_transect.png')
         plt.show()   
 
 

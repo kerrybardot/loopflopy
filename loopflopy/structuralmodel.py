@@ -141,7 +141,7 @@ class StructuralModel:
             if i < (len(transect_y)-1):
                 ax.set_xticks(ticks = [], labels = [])
             else:
-                ax.set_xlabel('Northing (m)')
+                ax.set_xlabel('Easting (m)')
             cbar = plt.colorbar(csa,
                                 ax=ax,
                                 boundaries=boundaries,
@@ -151,6 +151,86 @@ class StructuralModel:
             ax.set_title("y = " + str(transect_y[i]), size = 8)
             ax.set_ylabel('Elev. (mAHD)')
             plt.savefig('../figures/structural_ytransects.png')
+            plt.show()
+
+    def plot_xtransects2(self, transect_x, ny, nz, dz, faults = False, **kwargs):
+        # dz = spacing of bedding layers. Array length of dz should match the number of features in self.sequence_names
+        # ny, nz is the plotting resolution of lithology
+        # transect_x is a list of y-coordinates for the transects to plot   
+
+        self.sequence_names = []
+        for item in self.strat['sequence'].tolist():
+            if item not in self.sequence_names:
+                self.sequence_names.append(item)
+        print(self.sequence_names)
+
+        y0 = kwargs.get('y0', self.y0)
+        z0 = kwargs.get('z0', self.z0)
+        y1 = kwargs.get('y1', self.y1)
+        z1 = kwargs.get('z1', self.z1)
+        
+        z = np.linspace(z0, z1, nz)
+        y = np.linspace(y0, y1, ny)
+        Y,Z = np.meshgrid(y,z)
+
+        labels = self.strat_names[1:]
+        ticks = [i for i in np.arange(0,len(labels))]
+        boundaries = np.arange(-1,len(labels),1)+0.5
+
+        
+        for i, n in enumerate(transect_x):
+            fig = plt.figure(figsize=(12, 3))
+            ax = plt.subplot(len(transect_x), 1, i+1)
+            ax.set_aspect('equal')
+            X = np.zeros_like(Y)
+            X[:,:] = n
+
+            # Evaluate model to plot lithology
+            V = self.model.evaluate_model(np.array([X.flatten(),Y.flatten(),Z.flatten()]).T).reshape(np.shape(Y))
+            csa = ax.imshow(np.ma.masked_where(V<0,V), origin = "lower", extent = [y0,y1,z0,z1], cmap = self.cmap, norm = self.norm, aspect = 'auto') 
+            #for val in self.strat['val'].tolist():
+            #    ax.contour(X, Z, V, levels = [val], colors = 'Black', linewidths=1., linestyles = 'dashed') 
+
+            val_above = 0
+            # Evaluate scalar fields for each feature to plot contours
+            for k, feat in enumerate(self.sequence_names[1:]):
+                
+                values = self.strat[self.strat['sequence'] == feat].val.tolist()
+                values = sorted(values)
+                #print(feat, values, val_above)
+                V = self.model.evaluate_feature_value(feat, np.array([X.flatten(),Y.flatten(),Z.flatten()]).T).reshape(np.shape(Y))
+                for j in range(len(values)-1):
+                    contour_values = np.arange(values[j], values[j+1], dz[k])
+                    for val in contour_values:
+                        #print(feat, val)
+                        ax.contour(Y, Z, V, levels = [val], colors = 'Black', linewidths=0.5, linestyles = 'dashed') 
+                
+                # plot contours fror top unit within feature
+                contour_values = np.arange(values[-1], 9999, dz[k])#val_above+20, 20)
+                for val in contour_values:
+                    #print(feat, val)
+                    ax.contour(Y, Z, V, levels = [val], colors = 'Black', linewidths=0.5, linestyles = 'dashed') 
+                val_above = values[0]
+                
+            if faults:
+                # Evaluate faults to plot
+                for fault in self.faults:
+                    F = self.model.evaluate_feature_value(fault, np.array([X.flatten(),Y.flatten(),Z.flatten()]).T).reshape(np.shape(Y))
+                    ax.contour(Y, Z, F, levels = [0], colors = 'Black', linewidths=2., linestyles = 'dashed') 
+            if i < (len(transect_x)-1):
+                ax.set_xticks(ticks = [], labels = [])
+            else:
+                ax.set_xlabel('Northing (m)')
+            cbar = plt.colorbar(csa,
+                                ax=ax,
+                                boundaries=boundaries,
+                                shrink = 1.0
+                                )
+            cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 8, verticalalignment = 'center')    
+            ax.set_title("x = " + str(transect_x[i]), size = 8)
+            ax.set_ylabel('Elev. (mAHD)')
+            #plt.axis('equal')
+            plt.savefig('../figures/structural_xtransects.png')
             plt.show()
         
     def plot_ytransects2(self, transect_y, nx, nz, dz, faults = False, **kwargs):
@@ -220,7 +300,7 @@ class StructuralModel:
             if i < (len(transect_y)-1):
                 ax.set_xticks(ticks = [], labels = [])
             else:
-                ax.set_xlabel('Northing (m)')
+                ax.set_xlabel('Easting (m)')
             cbar = plt.colorbar(csa,
                                 ax=ax,
                                 boundaries=boundaries,
