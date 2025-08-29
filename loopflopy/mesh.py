@@ -354,7 +354,9 @@ class Mesh:
         for v in range(len(verts)):
             i,j = verts[v]
             vertices.append([v, i, j]) # need to make 1 based
-  
+
+        self.delr = delr[0]
+        self.delc = delc[0]
         self.angrot = angrot
         self.sg = sg
         self.cell2d = cell2d
