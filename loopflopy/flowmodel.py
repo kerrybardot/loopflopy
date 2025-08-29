@@ -218,6 +218,7 @@ class Flowmodel:
             print('head results shape ', head.shape)
             
             bud = gwf.output.budget()
+            print('Type bud ', type(bud))
             spd = bud.get_data(text='DATA-SPDIS')[0]
             
             if self.chd == True:

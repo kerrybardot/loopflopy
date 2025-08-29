@@ -262,14 +262,14 @@ class Geomodel:
                         thickness = top_geo - botm_geo[geolay]
                         if thickness[icpl] <= 0: # if the bottom if above ground surface...
                             nncell = find_nearest_bestest_neighbour(mesh, thickness, icpl, top_geo, botm_geo[geolay]) # find nearest neighbour..
-                            botm_geo[geolay][icpl] = top_geo[icpl] - thickness[nncell] # make the negative thickness cell have the same thickness as neighbouring cell                          
+                            botm_geo[geolay][icpl] = top_geo[icpl] - thickness[nncell] # make the negative thickness cell half the thickness as neighbouring cell                          
                             count += 1
                 else:
                     thickness = botm_geo[geolay-1] - botm_geo[geolay]
                     for icpl in range(mesh.ncpl):
                         if thickness[icpl] <= 0: # if the bottom if above ground surface...
                             nncell = find_nearest_bestest_neighbour(mesh, thickness, icpl, botm_geo[geolay-1], botm_geo[geolay]) # find nearest neighbour..
-                            botm_geo[geolay][icpl] = botm_geo[geolay-1][icpl] - thickness[nncell] # make the negative thickness cell have the same thickness as neighbouring cell
+                            botm_geo[geolay][icpl] = botm_geo[geolay-1][icpl] - thickness[nncell] # make the negative thickness cell have half the thickness as neighbouring cell
                             #print(f'Cell id {icpl} has negative thickness. Replacing geo bottom with cell {nncell}')
                             count += 1
 

@@ -269,7 +269,7 @@ class Mesh:
                 self.xcyc.append((cell[1],cell[2]))
             self.xc, self.yc = list(zip(*self.xcyc))
 
-    def create_mesh_transect(self, x0, x1, y0, y1, delr, delc): # delr is a list of column widths
+    '''def create_mesh_transect(self, x0, x1, y0, y1, delr, delc): # delr is a list of column widths
         if self.plangrid == 'transect':
 
             self.ncol = len(delr) # number of columns in transect
@@ -314,7 +314,58 @@ class Mesh:
             self.xcenters, self.ycenters = xcenters, ycenters
             self.idomain = np.ones((self.ncpl))
             self.vgrid = flopy.discretization.VertexGrid(vertices=self.vertices, cell2d=self.cell2d, ncpl = self.ncpl, nlay = 1)
-            self.gi = flopy.utils.GridIntersect(self.vgrid)
+            self.gi = flopy.utils.GridIntersect(self.vgrid)'''
+    
+    def create_mesh_transect(self, spatial, ncol, delr, delc): # delr is a list of column widths
+        self.x0, self.x1 = spatial.x0, spatial.x1
+        self.y0, self.y1 = spatial.y0, spatial.y1
+        rotation_angle = np.arctan2(self.y1 - self.y0, self.x1 - self.x0)
+
+        self.ncol = ncol #len(delr) # number of columns in transect
+        self.nrow = 1
+        self.ncpl = self.ncol * self.nrow
+        delr = delr * np.ones(self.ncol, dtype=float)
+        delc = delc * np.ones(self.nrow, dtype=float)
+        top  = np.ones((self.nrow, self.ncol), dtype=float)
+        botm = np.zeros((1, self.nrow, self.ncol), dtype=float)
+
+        angrot = np.degrees(np.arctan((self.y0 - self.y1)/(self.x0 - self.x1)))
+        print('angrot ', angrot)   
+        sg = flopy.discretization.StructuredGrid(delr=delr, delc=delc, top=top, botm=botm, 
+                                                xoff = self.x0, yoff = self.y0, angrot = angrot)
+
+        # Turn structured grid into DISV (its what I know!)
+        xyzcenters = sg.xyzcellcenters
+        xcenters = xyzcenters[0][0]
+        ycenters = xyzcenters[1][0]
+        iverts = sg.iverts
+        verts = sg.verts
+
+        cell2d = []
+        xcyc = [] # added 
+        for icpl in range(self.ncpl):
+            xc = xcenters[icpl]
+            yc = ycenters[icpl]
+            iv1, iv2, iv3, iv4 = iverts[icpl]
+            cell2d.append([icpl, xc, yc, 5, iv1, iv2, iv3, iv4, iv1])
+            xcyc.append((xc, yc))
+        
+        vertices = []
+        for v in range(len(verts)):
+            i,j = verts[v]
+            vertices.append([v, i, j]) # need to make 1 based
+  
+        self.angrot = angrot
+        self.sg = sg
+        self.cell2d = cell2d
+        self.xcyc = xcyc
+        self.xc, self.yc = list(zip(*self.xcyc))
+        self.vertices = vertices
+        self.xyzcenters = xyzcenters
+        self.xcenters, self.ycenters = xcenters, ycenters
+        self.idomain = np.ones((self.ncpl))
+        self.vgrid = flopy.discretization.VertexGrid(vertices=self.vertices, cell2d=self.cell2d, ncpl = self.ncpl, nlay = 1)
+        self.gi = flopy.utils.GridIntersect(self.vgrid)
     
     def locate_special_cells(self, spatial, threshold = 1.0):
         

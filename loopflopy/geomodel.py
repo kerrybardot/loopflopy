@@ -144,6 +144,7 @@ class Geomodel:
             litho = np.asarray(litho)
             litho = litho.reshape((self.nlay, mesh.ncpl))
             litho = np.flip(litho, 0)
+            litho = np.where(litho == -1, 0, litho) # This is to fill "sky cells" with surface lithology. Need to fix this later.
             self.lith = litho
             self.lith_disv = litho
             
@@ -310,7 +311,7 @@ class Geomodel:
                         thick_geo[lay_geo, :] = top_geo - botm_geo[lay_geo,:]
                     else:
                         thick_geo[lay_geo, :] = botm_geo[lay_geo-1,:] - botm_geo[lay_geo,:]
-                        
+                     
             self.top_geo = top_geo
             self.botm_geo = botm_geo  
             self.thick_geo = thick_geo    
