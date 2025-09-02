@@ -395,8 +395,9 @@ class Flowmodel:
         plt.tight_layout() 
         plt.savefig('../figures/plan_%s.png' % array)
 
-    def plot_transect(self, spatial, geomodel, array, title = None, grid = True,
-                      vmin = None, vmax = None, vectors = None, kstep = None, hstep = None, normalize = True,
+    def plot_transect(self, mesh, spatial, geomodel, array, title = None, grid = True,
+                      vmin = None, vmax = None, lithology = False, contours = False, levels = None, 
+                      vectors = None, kstep = None, hstep = None, normalize = True,
                       **kwargs): # array needs to be a string of a property eg. 'k11', 'angle2'
         x0 = kwargs.get('x0', spatial.x0)
         y0 = kwargs.get('y0', spatial.y0)
@@ -414,9 +415,20 @@ class Flowmodel:
         xsect = flopy.plot.PlotCrossSection(model=self.gwf, line={"line": [(x0, y0),(x1, y1)]}, 
                                             extent = [x0, x1, z0, z1], 
                                             geographic_coords=True)
+        csa = xsect.plot_array(a = getattr(self, array), cmap = 'Spectral', alpha=0.8, vmin = vmin, vmax = vmax)
+
+        if contours:
+            cp = xsect.contour_array(a=getattr(self, array), levels=levels, linewidths=0.5, colors='black')
+            ax.clabel(cp, inline=1, fontsize=8) # Adds labels
+
         if grid:
             xsect.plot_grid(lw = 0.5, color = 'black') 
-        csa = xsect.plot_array(a = getattr(self, array), cmap = 'Spectral', alpha=0.8, vmin = vmin, vmax = vmax)
+
+        if lithology:
+            for lay in range(geomodel.nlay):
+                bot = geomodel.botm_geo[lay]
+                xsect.plot(mesh.xc, bot)
+
         if vectors:
             xsect.plot_vector(self.qx, self.qy, self.qz, 
                               kstep = kstep,

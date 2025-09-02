@@ -151,8 +151,8 @@ class Geomodel:
             ang1, ang2 = [], []
             if self.transect:
                 for i in range(len(vf)):  
-                    ang1.append(find_angle1_transect(vf[i], self.rotation_angle))
-                    ang2.append(find_angle2_transect(vf[i], self.rotation_angle))
+                    ang1.append(find_angle1_transect(vf[i], mesh.angrot))
+                    ang2.append(find_angle2_transect(vf[i], mesh.angrot))
             else:
                 for i in range(len(vf)):  
                     ang1.append(find_angle1(vf[i]))

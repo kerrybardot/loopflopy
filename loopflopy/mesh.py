@@ -315,24 +315,28 @@ class Mesh:
             self.idomain = np.ones((self.ncpl))
             self.vgrid = flopy.discretization.VertexGrid(vertices=self.vertices, cell2d=self.cell2d, ncpl = self.ncpl, nlay = 1)
             self.gi = flopy.utils.GridIntersect(self.vgrid)'''
-    
-    def create_mesh_transect(self, spatial, ncol, delr, delc): # delr is a list of column widths
-        self.x0, self.x1 = spatial.x0, spatial.x1
-        self.y0, self.y1 = spatial.y0, spatial.y1
-        rotation_angle = np.arctan2(self.y1 - self.y0, self.x1 - self.x0)
 
-        self.ncol = ncol #len(delr) # number of columns in transect
+    def create_mesh_transect(self, crs, x0, x1, y0, y1, ncol, delc): # delr is a list of column widths
+        self.x0 = x0
+        self.y0 = y0
+        self.x1 = x1
+        self.y1 = y1
+        self.crs = crs
+        self.length = ((x1 - x0)**2 + (y1 - y0)**2)**0.5
+        self.angrot = np.degrees(np.arctan2(self.y1 - self.y0, self.x1 - self.x0))
+
+        # Horizontal discretisation
+        self.ncol = ncol
+        delr = self.length / self.ncol
         self.nrow = 1
         self.ncpl = self.ncol * self.nrow
-        delr = delr * np.ones(self.ncol, dtype=float)
-        delc = delc * np.ones(self.nrow, dtype=float)
-        top  = np.ones((self.nrow, self.ncol), dtype=float)
-        botm = np.zeros((1, self.nrow, self.ncol), dtype=float)
+        self.delr = delr * np.ones(self.ncol, dtype=float)
+        self.delc = delc * np.ones(self.nrow, dtype=float)
 
-        angrot = np.degrees(np.arctan((self.y0 - self.y1)/(self.x0 - self.x1)))
-        print('angrot ', angrot)   
-        sg = flopy.discretization.StructuredGrid(delr=delr, delc=delc, top=top, botm=botm, 
-                                                xoff = self.x0, yoff = self.y0, angrot = angrot)
+        sg = flopy.discretization.StructuredGrid(delr=self.delr, delc=self.delc, 
+                                                 top=np.ones((self.nrow, self.ncol), dtype=float), 
+                                                 botm=np.zeros((1, self.nrow, self.ncol), dtype=float), 
+                                                 xoff = self.x0, yoff = self.y0, angrot = self.angrot)
 
         # Turn structured grid into DISV (its what I know!)
         xyzcenters = sg.xyzcellcenters
@@ -355,19 +359,45 @@ class Mesh:
             i,j = verts[v]
             vertices.append([v, i, j]) # need to make 1 based
 
-        self.delr = delr[0]
-        self.delc = delc[0]
-        self.angrot = angrot
+        self.coords = [[x0, y0], [x1, y1]]
+        self.ls = LineString([[x0, y0], [x1, y1]])
+        self.gdf = gpd.GeoDataFrame({'geometry': [self.ls]}, crs=self.crs)
         self.sg = sg
         self.cell2d = cell2d
         self.xcyc = xcyc
         self.xc, self.yc = list(zip(*self.xcyc))
         self.vertices = vertices
-        self.xyzcenters = xyzcenters
         self.xcenters, self.ycenters = xcenters, ycenters
         self.idomain = np.ones((self.ncpl))
-        self.vgrid = flopy.discretization.VertexGrid(vertices=self.vertices, cell2d=self.cell2d, ncpl = self.ncpl, nlay = 1)
+
+        self.top = self.sg.top.flatten()
+        self.botm = self.sg.botm.squeeze(axis=1)
+
+        self.vgrid = flopy.discretization.VertexGrid(vertices=self.vertices, 
+                                                     cell2d=self.cell2d, 
+                                                     ncpl = self.ncpl, 
+                                                     top = self.top,
+                                                     botm = self.botm,
+                                                     #top=np.ones((self.nrow, self.ncol), dtype=float), 
+                                                     #botm=np.zeros((1, self.nrow, self.ncol), dtype=float), 
+                                                     nlay = 1)
         self.gi = flopy.utils.GridIntersect(self.vgrid)
+
+        print(f'\nTransect length: {self.length}')
+        print('x0 = ', x0, ' ,y0 = ', y0)
+        print('x1 = ', x1, ' ,y1 = ', y1)
+        print('angrot ', self.angrot)
+        print('ncol = ', self.ncol)
+
+        # Calculate distance along trasect for each cell
+        start_x = self.xc[0]
+        start_y = self.yc[0]
+        delr = self.delr[0]
+
+        self.L = [] # Create a list to store distances
+        for cell in range(self.ncpl):
+            distance = np.sqrt((start_x - self.xc[cell])**2 + (start_y - self.yc[cell])**2 + delr/2)
+            self.L.append(distance)
     
     def locate_special_cells(self, spatial, threshold = 1.0):
         

@@ -294,7 +294,8 @@ class StructuralModel:
                 
             if faults:
                 # Evaluate faults to plot
-                for fault in self.faults:
+                for fault in self.modelled_faults:
+                    print(fault)
                     F = self.model.evaluate_feature_value(fault, np.array([X.flatten(),Y.flatten(),Z.flatten()]).T).reshape(np.shape(Y))
                     ax.contour(X, Z, F, levels = [0], colors = 'Black', linewidths=2., linestyles = 'dashed') 
             if i < (len(transect_y)-1):
@@ -312,6 +313,89 @@ class StructuralModel:
             #plt.axis('equal')
             plt.savefig('../figures/structural_ytransects.png')
             plt.show()
+
+    def plot_transect(self, x0, x1, y0, y1, z0, z1, nh, nv, dz, faults = False, **kwargs):
+        # dz = spacing of bedding layers. Array length of dz should match the number of features in self.sequence_names
+        # nh, nv is the plotting resolution of lithology
+
+        self.sequence_names = []
+        for item in self.strat['sequence'].tolist():
+            if item not in self.sequence_names:
+                self.sequence_names.append(item)
+        print(self.sequence_names)
+
+        print(x0, x1)
+    
+        X = np.linspace(x0, x1, nh)
+        Y = np.linspace(y0, y1, nh)
+        Z = np.linspace(z0, z1, nv)
+        meshx, meshz = np.meshgrid(X, Z)
+
+        xyz = []
+        for z in Z:
+            for x,y in list(zip(X,Y)):       
+                xyz.append((x, y, z))
+
+        labels = self.strat_names[1:]
+        ticks = [i for i in np.arange(0,len(labels))]
+        boundaries = np.arange(-1,len(labels),1)+0.5
+
+        fig = plt.figure(figsize=(12, 3))
+        ax = plt.subplot(111)
+        ax.set_aspect('equal')
+
+        # Evaluate model to plot lithology
+        M = self.model.evaluate_model(xyz).reshape(nv, nh)
+        print(M.shape)
+        csa = ax.imshow(np.ma.masked_where(M<0,M), origin = "lower", extent = [x0,x1,z0,z1], cmap = self.cmap, norm = self.norm, aspect = 'auto') 
+        
+        for val in self.strat['val'].tolist():
+            ax.contour(meshx, meshz, M, levels = [val], colors = 'Black', linewidths=1., linestyles = 'dashed')
+
+        val_above = 0
+        # Evaluate scalar fields for each feature to plot contours
+        for k, feat in enumerate(self.sequence_names[1:]):
+            
+            values = self.strat[self.strat['sequence'] == feat].val.tolist()
+            values = sorted(values)
+            #print(feat, values, val_above)
+            V = self.model.evaluate_feature_value(feat, xyz).reshape(nv, nh)
+            for j in range(len(values)-1):
+                contour_values = np.arange(values[j], values[j+1], dz[k])
+                for val in contour_values:
+                    #print(feat, val)
+                    ax.contour(meshx, meshz, V, levels = [val], colors = 'Black', linewidths=0.5, linestyles = 'dashed') 
+            
+            # plot contours fror top unit within feature
+            contour_values = np.arange(values[-1], 9999, dz[k])#val_above+20, 20)
+            for val in contour_values:
+                #print(feat, val)
+                ax.contour(meshx, meshz, V, levels = [val], colors = 'Black', linewidths=0.5, linestyles = 'dashed') 
+            val_above = values[0]
+            
+        if faults:
+            # Evaluate faults to plot
+            for fault in self.modelled_faults:
+                F = self.model.evaluate_feature_value(fault, xyz).reshape(nv, nh)
+                ax.contour(meshx, meshz, F, levels = [0], colors = 'Black', linewidths=2., linestyles = 'dashed')
+
+        ax.set_xlabel('Easting (m)')
+        cbar = plt.colorbar(csa,
+                            ax=ax,
+                            boundaries=boundaries,
+                            shrink = 1.0
+                            )
+        cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 8, verticalalignment = 'center')    
+        ax.set_title(f"Structural Model\n({x0}, {y0}) to ({x1}, {y1})", size = 8)
+        ax.set_ylabel('Elevation (mAHD)')
+        #plt.axis('equal')
+        plt.savefig('../figures/structural_ytransects.png')
+        plt.show()
+
+        self.M = M
+        self.meshx = meshx
+        self.meshz = meshz
+        self.xyz = xyz
 
     def contour_bottom(self, spatial, contour_interval, unit = False, **kwargs):
         """
