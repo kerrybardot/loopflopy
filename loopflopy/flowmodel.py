@@ -295,14 +295,14 @@ class Flowmodel:
                             inner_maximum = 300,
                             linear_acceleration = "BICGSTAB",
                             reordering_method=['RCM'],
-                            #no_ptcrecord = ['ALL'],
+                            no_ptcrecord = ['ALL'],
                             under_relaxation = 'DBD',
                             under_relaxation_kappa = 0.2, #0.05 (aggressive) to 0.3
                             under_relaxation_theta = 0.5, # 0.5 - 0.9 Changes how quickly relaxation factor changes
                             under_relaxation_gamma = 0.1, # 0-0.2 doesnt make big difference
                             under_relaxation_momentum = 0.001, #0-0.001 doesn't make big difference
                             backtracking_number = 15,
-                            backtracking_tolerance = 1.1, #1.01 (aggressive) to 10000
+                            backtracking_tolerance = 1.05, #1.01 (aggressive) to 10000
                             backtracking_reduction_factor = 0.7, # 0.1-0.3, or 0.9 when non-linear convergence HARD 
                             preconditioner_levels=18, #1 to 5... PLAY WITH THIS FOR SPEED UP!
                             preconditioner_drop_tolerance=0.00001, # ...if fill 7-18 (hard), DT 1e-2 (7) to 1e-5 (18)
