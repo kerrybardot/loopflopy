@@ -289,8 +289,8 @@ class Flowmodel:
                 sim.remove_package(package_name='ims')
                 ims = flopy.mf6.ModflowIms(sim, print_option='ALL', 
                             complexity    = 'Complex',
-                            outer_dvclose = 1e-4, 
-                            inner_dvclose = 1e-6, 
+                            outer_dvclose = 1e-6, #1e-4
+                            inner_dvclose = 1e-7, #1e-6
                             outer_maximum = 300,
                             inner_maximum = 300,
                             linear_acceleration = "BICGSTAB",
