@@ -291,14 +291,14 @@ class Flowmodel:
                             complexity    = 'Complex',
                             outer_dvclose = 1e-4, 
                             inner_dvclose = 1e-6, 
-                            outer_maximum = 60,
+                            outer_maximum = 300,
                             inner_maximum = 300,
                             linear_acceleration = "BICGSTAB",
                             reordering_method=['RCM'],
                             #no_ptcrecord = ['ALL'],
                             under_relaxation = 'DBD',
                             under_relaxation_kappa = 0.2, #0.05 (aggressive) to 0.3
-                            under_relaxation_theta = 0.7, # 0.5 - 0.9
+                            under_relaxation_theta = 0.5, # 0.5 - 0.9 Changes how quickly relaxation factor changes
                             under_relaxation_gamma = 0.1, # 0-0.2 doesnt make big difference
                             under_relaxation_momentum = 0.001, #0-0.001 doesn't make big difference
                             backtracking_number = 15,
