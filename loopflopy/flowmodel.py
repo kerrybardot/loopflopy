@@ -127,15 +127,25 @@ class Flowmodel:
         # -------------- IC -------------------------
         ic = flopy.mf6.ModflowGwfic(gwf, strt = self.data.strt)
 
-         # -------------- WEL / STO -------------------------
+         # --------------  STO -------------------------
     
+        if not transient:
+            sto = flopy.mf6.modflow.mfgwfsto.ModflowGwfsto(gwf, 
+                                                    storagecoefficient=None, 
+                                                    iconvert=self.geomodel.iconvert, 
+                                                    ss = self.geomodel.ss, 
+                                                    sy = self.geomodel.sy,
+                                                    steady_state={0: True})
+        # -------------- WEL / STO -------------------------
         if transient and self.wel:  
 
             sto = flopy.mf6.modflow.mfgwfsto.ModflowGwfsto(gwf, 
                                                            storagecoefficient=None, 
                                                            iconvert=self.geomodel.iconvert, 
                                                            ss = self.geomodel.ss, 
-                                                           sy = self.geomodel.sy)
+                                                           sy = self.geomodel.sy,
+                                                           #steady_state={0: True}
+                                                           )
             wel = flopy.mf6.modflow.mfgwfwel.ModflowGwfwel(gwf, 
                                                            print_input=True, 
                                                            print_flows=True, 
