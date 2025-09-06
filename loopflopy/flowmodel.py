@@ -204,7 +204,7 @@ class Flowmodel:
         print('Time taken to write flow model = ', run_time.total_seconds())
 
          # --------------------------------------------------------
-        return(sim)
+        return(sim, gwf)
 
     def run_flowmodel(self, sim, transient = False, zone_budget =False, zone_array = None):
     
@@ -244,8 +244,12 @@ class Flowmodel:
                 self.obsdata = obs_data
 
             if self.zone_budget == True:
-                zb = flopy.utils.ZoneBudget(bud, self.zone_array, model=gwf) # Instantiate the ZoneBudget object
+                
+                zb = flopy.utils.ZoneBudget6(bud, zone_array, exe_name='../exe/zbud6.exe')
+                zb.write_input()
+                zb.run_model()
                 zone_budget = zb.get_budget() # Get the budget for each zone
+                
                 for record in zone_budget: # Print the budget
                     print(record)
 

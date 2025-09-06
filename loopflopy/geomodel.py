@@ -492,8 +492,8 @@ class Geomodel:
             ang1, ang2 = [], []
             if self.transect:
                 for i in range(len(vf)):  
-                    ang1.append(find_angle1_transect(vf[i], self.rotation_angle))
-                    ang2.append(find_angle2_transect(vf[i], self.rotation_angle))
+                    ang1.append(find_angle1_transect(vf[i], mesh.angrot))
+                    ang2.append(find_angle2_transect(vf[i], mesh.angrot))
             else:
                 for i in range(len(vf)):  
                     ang1.append(find_angle1(vf[i]))
@@ -734,7 +734,7 @@ class Geomodel:
         plt.show()   
 
 
-    def geomodel_transect_array(self, spatial, array, title, 
+    def geomodel_transect_array(self, spatial, array, title, grid = True,
                                 vmin = None, vmax = None, **kwargs):
         x0 = kwargs.get('x0', spatial.x0)
         y0 = kwargs.get('y0', spatial.y0)
@@ -751,7 +751,8 @@ class Geomodel:
         ax.set_ylabel('z (m)', size = 10)        
         ax.set_ylim([z0, z1])
   
-        linecollection = xsect.plot_grid(lw = 0.1, color = 'black') 
+        if grid:
+            linecollection = xsect.plot_grid(lw = 0.1, color = 'black') 
         
         cbar = plt.colorbar(csa, shrink = 1.0)
         plt.title(f"{title}\nx0, y0 = {x0:.0f}, {x1:.0f}: x1, y1 = {y0:.0f}, {y1:.0f}", size=8)
