@@ -12,9 +12,52 @@ import loopflopy.utils as utils
 logfunc = lambda e: np.log10(e)
 
 def find_angle1_transect(nv, rotation_angle):
+    """
+    Calculate angle1 (dip direction) for transect models.
+    Angle 1 rotates around z axis counterclockwise looking from +ve z (like a bearing).
+    
+    For 2D transect models, the dip direction is simply the rotation angle
+    of the transect line.
+    
+    Parameters
+    ----------
+    nv : ndarray
+        Normal vector to the geological surface (not used in transect mode).
+    rotation_angle : float
+        Rotation angle of the transect line in degrees.
+    
+    Returns
+    -------
+    float
+        Dip direction angle in degrees.
+    """
     return rotation_angle
 
 def find_angle2_transect(nv, rotation_angle):
+    """
+    Calculate angle2 (dip angle) for transect models.
+    Angle 2 rotates around y axis clockwise looking from +ve y (dip).
+
+    For 2D transect models, calculates the dip angle by finding the angle
+    between the surface normal vector and the transect plane.
+    
+    Parameters
+    ----------
+    nv : ndarray
+        Normal vector to the geological surface from Loop structural modeling.
+    rotation_angle : float
+        Rotation angle of the transect line in degrees.
+    
+    Returns
+    -------
+    float
+        Dip angle in degrees.
+    
+    Notes
+    -----
+    Uses cross product between surface normal and transect normal to
+    calculate the dip angle in the transect plane.
+    """
 
     # normal vector (nv) to tangent plane (from Loop)
     n = np.array([np.tan(math.radians(rotation_angle)), 1, 0])  # Normal vector to transect- check this!!
@@ -23,7 +66,32 @@ def find_angle2_transect(nv, rotation_angle):
     return angle2
 
 # angle 1 (DIP DIRECTION) rotates around z axis counterclockwise looking from +ve z.
-def find_angle1(nv): # nv = normal vector to surface
+def find_angle1(nv):
+    """
+    Calculate angle1 (dip direction) from surface normal vector.
+    Angle 1 rotates around z axis counterclockwise looking from +ve z (like a bearing).
+    
+    Computes the dip direction angle, which is the azimuth of the steepest
+    descent direction on a geological surface.
+    
+    Parameters
+    ----------
+    nv : ndarray
+        Normal vector to the geological surface [a, b, c].
+    
+    Returns
+    -------
+    float
+        Dip direction angle in degrees (0-360), measured clockwise from north.
+    
+    Notes
+    -----
+    The dip direction is calculated by:
+    1. Finding the steepest descent gradient in the x-y plane
+    2. Computing the azimuth angle using atan2
+    
+    This angle represents the direction a ball would roll down the surface.
+    """
     a, b, c = nv[0], nv[1], nv[2]
 
     # Find steepest descent gradient (g) in the x-y plane (Angle 1)
@@ -31,7 +99,30 @@ def find_angle1(nv): # nv = normal vector to surface
     angle1 = np.degrees(np.arctan2(g[1], g[0])) # angle in xy plane (anticlockwise)
     return angle1
 
-def find_angle2(nv): # nv = normal vector to surface
+def find_angle2(nv):
+    """
+    Calculate angle2 (dip angle) from surface normal vector.
+    Angle 2 rotates around y axis clockwise looking from +ve y (dip).
+    
+    Computes the dip angle, which is the angle between the geological
+    surface and the horizontal plane.
+    
+    Parameters
+    ----------
+    nv : ndarray
+        Normal vector to the geological surface [a, b, c].
+    
+    Returns
+    -------
+    float
+        Dip angle in degrees (0-90), where 0 is horizontal and 90 is vertical.
+    
+    Notes
+    -----
+    The dip angle is calculated using the relationship between the
+    horizontal and vertical components of the surface normal vector.
+    This represents how steeply the surface is inclined.
+    """
     a, b, c = nv[0], nv[1], nv[2]
 
     # Find steepest descent gradient (g) in the x-y plane (Angle 1)
@@ -42,59 +133,113 @@ def find_angle2(nv): # nv = normal vector to surface
     angle2 = np.degrees(np.arctan(np.sqrt(a**2 + b**2)/np.abs(c)))
     return angle2
 
-# # angle 1 (DIP DIRECTION) rotates around z axis counterclockwise looking from +ve z.
-# def find_angle1(nv): # nv = normal vector to surface
-
-#     # The dot product of perpencicular vectors = 0
-#     # A vector perpendicular to nv would be [a,b,c]
-
-#     if nv[2] == 0:
-#         angle1 = 0.
-#     else:
-#         a = nv[0]
-#         b = nv[1]
-#         c = -(a*nv[0]+b*nv[1])/nv[2]
-#         v = [a,b,c]
-#         if np.isnan(v[0]) == True or np.isnan(v[1]) == True: 
-#             angle1 = 0.
-#         if v[0] == 0.:
-#             if v[1] > 0:
-#                 angle1 = 90
-#             else:
-#                 angle1 = -90
-#         else:             
-#             tantheta = v[1]/v[0] 
-#             angle1 = np.degrees(math.atan(tantheta))
-#     return(angle1)
-
-# # angle 2 (DIP) rotates around y axis clockwise looking from +ve y.
-# def find_angle2(nv): # nv = normal vector to surface
-#     # The dot product of perpencicular vectors = 0
-#     # A vector perpendicular to nv would be [a,b,c]
-
-#     if nv[2] == 1 | nv[2] == 0: # Can't be vertical or have no magnitude 
-#         angle2 = 0.
-#     else:
-#         a = nv[0]
-#         b = nv[1]
-#         c = -(a*nv[0]+b*nv[1])/nv[2]
-#         v = [a,b,c]
-#         if np.isnan(v[0]) == True or np.isnan(v[1]) == True or np.isnan(v[2]) == True:
-#             angle2 = 0.
-#         else:
-#             v_mag = (v[0]**2 + v[1]**2 + v[2]**2)**0.5 
-#             costheta = v[2]/v_mag
-#             angle2 = 90-np.degrees(math.acos(costheta)) 
-#     return(angle2)
-
 def reshape_loop2mf(array, nlay, ncpl):
+    """
+    Reshape and flip array from Loop format to MODFLOW format.
+    
+    Converts a 1D array from Loop structural modeling into a 2D array
+    suitable for MODFLOW, with proper layer ordering.
+    
+    Parameters
+    ----------
+    array : ndarray
+        1D array from Loop evaluation with length (nlay * ncpl).
+    nlay : int
+        Number of model layers.
+    ncpl : int
+        Number of cells per layer.
+    
+    Returns
+    -------
+    ndarray
+        2D array with shape (nlay, ncpl), flipped so layer 0 is at top.
+    
+    Notes
+    -----
+    Loop structural modeling evaluates from bottom to top, while MODFLOW
+    expects layers from top to bottom. This function handles the conversion.
+    """
     array = array.reshape((nlay, ncpl))
     array = np.flip(array, 0)
     return(array)
     
 class Geomodel:
+    """
+    A geological model class for creating 3D lithological block models for MODFLOW 6 simulations.
     
-    def __init__(self, scenario, vertgrid, z0, z1, transect = False, nlg = None, nlay = None, **kwargs):     
+    This class converts LoopStructural structural geological models into discretized 3D models suitable for
+    numerical groundwater flow modeling. It handles different vertical discretization schemes
+    and manages hydraulic property assignment based on lithological units.
+    
+    Parameters
+    ----------
+    scenario : str
+        Name identifier for the geological model scenario.
+    vertgrid : str
+        Vertical discretization scheme. Options:
+        - 'vox': Fixed voxel-based discretization
+        - 'con': Conformable layers with same number of sublayers everywhere (e.g. 2 flow model layers per geological layer)
+        - 'con2': Conformable layers with variable sublayer thickness based on maximum thickness
+    z0 : float
+        Bottom elevation of the model domain (m). Note: code not updated yet to handle bottom of model being bottom of layer.
+    z1 : float
+        Top elevation of the model domain (m). Note that ground surface elevation will replace this value later.
+    transect : bool, optional
+        Whether this is a 2D transect model (default: False).
+    nlg : int, optional
+        Number of geological layers to use (default: None, uses all available). 
+        Option to only use a subset of geological layers (from top)
+    nlay : int, optional
+        Number of model layers for 'vox' discretization (default: None).
+    **kwargs
+        Additional keyword arguments to set as instance attributes.
+    
+    Attributes
+    ----------
+    scenario : str
+        Model scenario name.
+    vertgrid : str
+        Vertical discretization scheme (vox, con, con2)
+    z0, z1 : float
+        Bottom and top elevations of model domain.
+    units : ndarray
+        Array of geological unit names.
+    strat_names : list
+        List of stratigraphic unit names.
+    ncpl : int
+        Number of cells per layer.
+    nlay : int
+        Number of model layers.
+    lith : ndarray
+        Lithology codes for each model cell.
+    k11, k22, k33 : ndarray
+        Hydraulic conductivity tensors for each cell.
+    ss, sy : ndarray
+        Specific storage and specific yield for each cell.
+    iconvert : ndarray
+        Convertible layer flags for each cell.
+    botm : ndarray
+        Bottom elevations of flow model layers.
+    top : ndarray
+        Top elevation of top flow model layer.
+    idomain : ndarray
+        Active/inactive cell flags. 1=active, -1=inactive (gets pinched out).
+    
+    Examples
+    --------
+    >>> # Create a geological model with conformable layers
+    >>> geomodel = Geomodel('test_scenario', 'con', z0=-500, z1=100, nlay=25)
+    >>> 
+    >>> # Evaluate structural model at mesh points
+    >>> geomodel.evaluate_structuralmodel(mesh, structural_model, res=5)
+    >>> 
+    >>> # Create model layers
+    >>> surface = np.ones(mesh.ncpl) * 100  # Ground surface elevation
+    >>> geomodel.create_model_layers(mesh, structural_model, surface, nls=2)
+    """
+    
+    def __init__(self, scenario, vertgrid, z0, z1, transect = False, 
+                 nlg = None, nlay = None, **kwargs):   
            
         self.scenario = scenario                      
         self.vertgrid = vertgrid     
@@ -109,7 +254,50 @@ class Geomodel:
         
 #---------- FUNCTION TO EVALUATE GEO MODEL AND POPULATE HYDRAULIC PARAMETERS ------#
 
-    def evaluate_structuralmodel(self, mesh, structuralmodel): # Takes the project parameters and model class.         
+    def evaluate_structuralmodel(self, mesh, structuralmodel, res = None):
+        """
+        Evaluate the 3D structural geological model at mesh cell centers.
+        
+        This method queries the structural model at all mesh cell centers to determine
+        lithology codes and gradient information. For 'con' and 'con2' discretization,
+        it creates a high-resolution evaluation grid that is later used to create
+        conformable model layers.
+        
+        Parameters
+        ----------
+        mesh : Mesh
+            The computational mesh object containing cell centers and geometry.
+        structuralmodel : StructuralModel
+            The structural geological model to evaluate.
+        res : float, optional
+            Vertical resolution for 'con' and 'con2' discretization schemes (m).
+            Not used for 'vox' scheme.
+        
+        Notes
+        -----
+        - For 'vox' discretization: Creates regular voxel grid and evaluates model
+        - For 'con'/'con2' discretization: Creates high-resolution evaluation points
+          for later layer boundary interpolation
+        - Stores lithology codes and gradient vectors for each evaluation point
+        - Gradient vectors are used to calculate hydraulic conductivity tensor angles
+        
+        Sets Attributes
+        ---------------
+        units : ndarray
+            Geological unit names from structural model.
+        strat_names : list
+            Stratigraphic unit names.
+        ncpl : int
+            Number of cells per layer from mesh.
+        plangrid : str
+            Plan view grid type from mesh ('car' (cartesian), 'tri' (triangular) or 'vor' (Voronoi)).
+        lith : ndarray
+            Lithology codes at each model cell.
+        litho : ndarray
+            High-resolution lithology evaluation (for 'con'/'con2').
+        ang1, ang2 : ndarray
+            Hydraulic conductivity tensor angles used in NPF package.
+        """         
         print('Creating Geomodel for ', self.scenario, ' ...\n')
 
         print('0. Creating xyz array... ')
@@ -163,7 +351,7 @@ class Geomodel:
 #---------- EVALUATE STRUCTUAL MODEL - CON and CON2  ------#
 
         if self.vertgrid == 'con' or self.vertgrid == 'con2' : # CREATING DIS AND NPF ARRAYS
-            
+            self.res = res
             nlay = int((z1 - z0)/self.res)
             dz = (z1 - z0)/nlay # actual resolution
             self.dz = dz
@@ -194,9 +382,67 @@ class Geomodel:
             print('   Time taken Block 1 (Evaluate model) = ', run_time.total_seconds())
 
     def create_model_layers(self, mesh, structuralmodel, surface, max_thick = None, nls = None):
+        """
+        Create 3D model layer geometry from evaluated structural model.
+        
+        This method converts the high-resolution structural model evaluation into
+        discrete model layers suitable for numerical flow simulation. Different
+        algorithms are used depending on the vertical discretization scheme.
+        
+        Parameters
+        ----------
+        mesh : Mesh
+            The computational mesh object.
+        structuralmodel : StructuralModel
+            The structural model created by LoopStructural
+        surface : ndarray
+            Ground surface elevation at each mesh cell (m).
+        max_thick : list of float, optional
+            Maximum thickness for each geological layer when using 'con2' discretization (m).
+            Only used with 'con2' scheme.
+        nls : int, optional
+            Number of sublayers (flowmodel layers per geological layer) for 'con' and 'con2' discretization.
+            Only used with 'con' and 'con2' schemes.
+        
+        Notes
+        -----
+        Discretization Schemes:
+        
+        - 'vox': Regular voxel grid with uniform layer thickness
+        - 'con': Conformable layers with constant sublayer thickness per geological unit
+        - 'con2': Conformable layers with variable sublayer thickness based on max_thick
+        
+        The method handles:
+        - Layer pinchouts (cells with zero thickness)
+        - Inactive cell identification (idomain = -1)
+        - Bottom elevation calculation for each model layer
+        - Cell ID mapping between different grid formats
+        
+        Sets Attributes
+        ---------------
+        nlay : int
+            Total number of model layers.
+        botm : ndarray
+            Bottom elevations of model layers (nlay, ncpl).
+        top : ndarray
+            Top elevations of model layers (ncpl,).
+        idomain : ndarray
+            Active cell flags (nlay, ncpl). 1=active, -1=inactive.
+        lith : ndarray
+            Lithology codes for each model cell.
+        thick_geo : ndarray
+            Thickness of each geological layer (nlg, ncpl).
+        cellid_disv, cellid_disu : ndarray
+            Cell ID mappings for DISV and DISU grid formats.
+        ncell_disv, ncell_disu : int
+            Total number of cells in DISV and DISU formats.
+        model_layers : list
+            Mapping of model layers to geological layers.
+        """
 
         self.max_thick = max_thick
         self.nls = nls
+
         print('\n2. Creating geo model layers...')
         t0 = datetime.now()
   
@@ -248,13 +494,13 @@ class Geomodel:
             idomain_geo = np.zeros((self.nlg, mesh.ncpl), dtype=float)      # idomain array for each lithology
             
             stop_array = np.zeros((self.nlg+1, mesh.ncpl), dtype=float)
-            print('stop_array shape', stop_array .shape )
+            #print('stop_array shape', stop_array .shape )
             V = self.litho
             W = V[1:, :] - V[:-1, :] 
-            print(np.unique(W, return_counts=True))
+            #print(np.unique(W, return_counts=True))
 
             if np.any(W < 0):
-                print(f'***Geology repeats itself {np.sum(W < 0)} times at {np.where(W < 0)}*****')
+                #print(f'***Geology repeats itself {np.sum(W < 0)} times at {np.where(W < 0)}*****')
                 W[W < 0] = 0 # this is to handle instances where geology goes in reverse order (back to a younger sequence)
 
             print('   nlay = ', nlay)
@@ -262,35 +508,35 @@ class Geomodel:
             print('   nlg number of geo layers = ', self.nlg)
 
             for icpl in range(mesh.ncpl):
-                print('ICPL = ', icpl)
-                if icpl == 73:
-                    print('Pillar lithologies ', V[:,icpl])
-                    print('V - V ', V[1:, icpl] - V[:-1, icpl])
-                    print('W ', W[:, icpl])
+                #print('ICPL = ', icpl)
+                #if icpl == 73:
+                    #print('Pillar lithologies ', V[:,icpl])
+                    #print('V - V ', V[1:, icpl] - V[:-1, icpl])
+                    #print('W ', W[:, icpl])
                 # IDOMAIN
                 present = np.unique(V[:,icpl])
-                print('present: ', present)
+                #print('present: ', present)
                 for p in present:
                     if p >= 0: # don't include above ground 
                         idomain_geo[p, icpl] = 1
                 
                 stop = np.array([nlay-1]) # Add the last layer to start with
-                print('line 239 stop ', stop)
+                #print('line 239 stop ', stop)
                 for i in range(1,self.nlg): 
                     
                     idx = np.where(W[:,icpl] == i)[0] # checking if different from row above
                     # e.g. if i =  3 and idx =  [146 199], then it skips 3 layers TWICE!
                     if idx.size != 0: # If there returns an index
-                        print('geo layer = ', i, 'index where lith changes = ', idx)
+                        #print('geo layer = ', i, 'index where lith changes = ', idx)
                         
                         for id in idx:
-                            if icpl == 73: print('id = ', id, 'idx = ', idx, 'np.ones(i) = ', np.ones(i))
+                            #if icpl == 73: print('id = ', id, 'idx = ', idx, 'np.ones(i) = ', np.ones(i))
                             idx_array = id * np.ones(i)
                             stop = np.concatenate((stop, idx_array))
     
                 n = self.nlg+1 - len(stop)# number of pinched out layers at the bottom not yet added to stop array
-                print('number of pinched out layers at the bottom not yet added to stop array = ', n)
-                print('stop  ', stop)
+                #print('number of pinched out layers at the bottom not yet added to stop array = ', n)
+                #print('stop  ', stop)
                 m = (nlay-1) * np.ones(n) # this is just accounting for the bottom geo layers that dont exist in pillar
                 stop = np.concatenate((stop, m))
 
@@ -422,7 +668,6 @@ class Geomodel:
                             if lay == 0:
                                 #if icpl == 500: print('Top layer, lay = ', lay)
                                 #if icpl == 500: print(top[icpl] - dz)
-
                                 botm[lay, icpl] = self.top_geo[icpl] - dz # KB
                                 lith[lay, icpl] = lay_geo
                             else:
@@ -527,7 +772,56 @@ class Geomodel:
         print('   Time taken Block 4 gradients= ', run_time.total_seconds())
 
 ################## PROP ARRAYS TO BE SAVED IN DISU FORMAT ##################        
-    def fill_cell_properties(self, mesh): # Uses lithology codes to populate arrays 
+    def fill_cell_properties(self, mesh):
+        """
+        Populate hydraulic property arrays based on lithology codes.
+        
+        This method assigns hydraulic properties (hydraulic conductivity, storage,
+        convertibility) to each model cell based on its lithology code. Properties
+        are read from the per-layer property lists and mapped to the 3D model.
+        ## CURRENTLY UPGRADING THIS TO HANDLE KRIGING WITH PILOT POINTS ###
+        
+        Parameters
+        ----------
+        mesh : Mesh
+            The computational mesh object.
+        
+        Notes
+        -----
+        The method:
+        1. Creates property arrays for all cells
+        2. Assigns properties based on lithology codes using per-layer values
+        3. Handles inactive cells (sky cells) by setting properties to zero
+        4. Calculates hydraulic conductivity tensor angles from gradient vectors
+        5. Converts arrays from DISV to DISU format for unstructured grids
+        6. Computes logarithmic hydraulic conductivity values
+        
+        Required Attributes
+        -------------------
+        hk_perlay : list
+            Horizontal hydraulic conductivity for each geological layer (m/d).
+        vk_perlay : list
+            Vertical hydraulic conductivity for each geological layer (m/d).
+        ss_perlay : list
+            Specific storage for each geological layer (1/m).
+        sy_perlay : list
+            Specific yield for each geological layer (dimensionless).
+        iconvert_perlay : list
+            Convertible layer flags for each geological layer.
+        
+        Sets Attributes
+        ---------------
+        k11, k22, k33 : ndarray
+            Hydraulic conductivity tensor components (DISU format).
+        ss, sy : ndarray
+            Storage properties (DISU format).
+        iconvert : ndarray
+            Convertible layer flags (DISU format).
+        angle1, angle2, angle3 : ndarray
+            Hydraulic conductivity tensor angles (DISU format).
+        logk11, logk22, logk33 : ndarray
+            Logarithmic hydraulic conductivity values.
+        """ 
         
         print('\n5. Filling cell properties...')
         t0 = datetime.now()  
@@ -569,14 +863,6 @@ class Geomodel:
             self.sy[self.lith_disv==n]  = self.sy_perlay[n]
             self.iconvert[self.lith_disv==n]  = self.iconvert_perlay[n]
                    
-        # Force all K tensor angles in fault zone to 0 (Loop can't calculate angles in faulted area properly yet!)
-        '''if 'spatial.fault_poly' in globals(): #if hassattr(P,"fault_poly"):
-            for icpl in range(mesh.ncpl):
-                point = Point(mesh.xcyc[icpl])
-                if spatial.fault_poly.contains(point):
-                    for lay in range(self.nlay):
-                        self.ang1[lay,icpl] = 0  
-                        self.ang2[lay,icpl] = 0 '''  
         ######################################
         
         self.lith   = self.lith_disv[self.cellid_disu != -1].flatten()
@@ -613,14 +899,6 @@ class Geomodel:
             self.iconvert[self.lith_disv==n]  = self.iconvert_perlay[n]
         self.iconvert     = self.iconvert[self.cellid_disu != -1].flatten()
                    
-        # Force all K tensor angles in fault zone to 0 (Loop can't calculate angles in faulted area properly yet!)
-        '''if 'spatial.fault_poly' in globals(): #if hassattr(P,"fault_poly"):
-            for icpl in range(mesh.ncpl):
-                point = Point(mesh.xcyc[icpl])
-                if spatial.fault_poly.contains(point):
-                    for lay in range(self.nlay):
-                        self.ang1[lay,icpl] = 0  
-                        self.ang2[lay,icpl] = 0 '''  
         ######################################
         
         # Heterogeneous properties
@@ -698,6 +976,40 @@ class Geomodel:
         gdf.to_file('../data/data_shp/geomodel_surface_contours.shp', driver='ESRI Shapefile')
 
     def geomodel_transect_lith(self, structuralmodel, spatial, plot_node = None, **kwargs):
+        """
+        Plot a cross-sectional view of the geological model showing lithology.
+        
+        Creates a 2D cross-section plot displaying the lithological units along
+        a specified transect line through the 3D geological model.
+        
+        Parameters
+        ----------
+        structuralmodel : StructuralModel
+            The structural model containing color mapping and unit names.
+        spatial : Spatial
+            Spatial data object containing model boundaries.
+        plot_node : int, optional
+            Specific model node (zero-based) to highlight on the transect (default: None).
+        **kwargs
+            x0, y0 : float
+                Starting coordinates of transect line (default: spatial bounds).
+            x1, y1 : float
+                Ending coordinates of transect line (default: spatial bounds).
+            z0, z1 : float
+                Vertical extent for plotting (default: model domain).
+        
+        Notes
+        -----
+        The plot shows:
+        - Lithological units colored according to structural model color scheme
+        - Model grid lines for reference
+        - Optional node highlighting
+        - Colorbar with unit names
+        - Coordinate information in title
+        
+        The transect is created using FloPy's PlotCrossSection functionality
+        and displays the 3D lithology array (lith_disv) along the specified line.
+        """
         x0 = kwargs.get('x0', spatial.x0)
         y0 = kwargs.get('y0', spatial.y0)
         z0 = kwargs.get('z0', self.z0)
@@ -705,7 +1017,7 @@ class Geomodel:
         y1 = kwargs.get('y1', spatial.y1)
         z1 = kwargs.get('z1', self.z1)
     
-        fig = plt.figure(figsize = (12,4))
+        fig = plt.figure(figsize = (12,2))
         ax = plt.subplot(111)
         #ax.set_aspect('equal')
         xsect = flopy.plot.PlotCrossSection(modelgrid=self.vgrid , line={"line": [(x0, y0),(x1, y1)]}, geographic_coords=True)
@@ -736,6 +1048,43 @@ class Geomodel:
 
     def geomodel_transect_array(self, spatial, array, title, grid = True,
                                 vmin = None, vmax = None, **kwargs):
+        """
+        Plot a cross-sectional view of any 3D array through the geological model.
+        
+        Creates a 2D cross-section plot displaying values from a 3D array
+        (such as hydraulic head, hydraulic conductivity, etc.) along a specified
+        transect line through the model.
+        
+        Parameters
+        ----------
+        spatial : Spatial
+            Spatial data object containing model boundaries.
+        array : ndarray
+            3D array to plot with shape (nlay, ncpl) matching the model grid.
+        title : str
+            Title for the plot and filename when saving.
+        grid : bool, optional
+            Whether to overlay model grid lines (default: True).
+        vmin, vmax : float, optional
+            Minimum and maximum values for color scale (default: None, auto-scale).
+        **kwargs
+            x0, y0 : float
+                Starting coordinates of transect line (default: spatial bounds).
+            x1, y1 : float
+                Ending coordinates of transect line (default: spatial bounds).
+            z0, z1 : float
+                Vertical extent for plotting (default: model domain).
+        
+        Notes
+        -----
+        This is a general-purpose transect plotting method that can display:
+        - Hydraulic head distributions
+        - Hydraulic conductivity fields
+        - Flow velocities
+        - Any other 3D model property
+        
+        The plot is automatically saved to '../figures/geomodel_transect_{title}.png'
+        """
         x0 = kwargs.get('x0', spatial.x0)
         y0 = kwargs.get('y0', spatial.y0)
         z0 = kwargs.get('z0', self.z0)
@@ -774,7 +1123,35 @@ class Geomodel:
 
     def contour_bottom(self, spatial, mesh, structuralmodel, unit, contour_interval):
         """
-        Contour the bottom of a unit
+        Create contour map of the bottom elevation of a specified geological unit.
+        
+        Generates a plan-view contour map showing the bottom elevation surface
+        of a geological unit, with data points and model boundaries overlaid.
+        
+        Parameters
+        ----------
+        spatial : Spatial
+            Spatial data object containing model boundaries.
+        mesh : Mesh
+            Computational mesh with cell center coordinates.
+        structuralmodel : StructuralModel
+            Structural model containing geological data.
+        unit : str
+            Name of the geological unit to contour.
+        contour_interval : float
+            Vertical spacing between contour lines (m).
+        
+        Notes
+        -----
+        The method:
+        1. Finds the geological layer index for the specified unit
+        2. Interpolates bottom elevations onto a regular grid
+        3. Creates filled contour plot with specified interval
+        4. Overlays model boundaries and data points
+        5. Adds colorbar and labels
+        
+        The contour levels are automatically calculated based on the
+        elevation range and specified interval, rounded to neat values.
         """
         def rounded_down(number, contour_interval): # rounded_to is the nearest 1, 10, 100 etc
             return math.floor(number / contour_interval) * contour_interval

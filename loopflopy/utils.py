@@ -269,6 +269,7 @@ def plot_node(node, geomodel, structuralmodel, spatial, sim, scenario, features,
     cbar = plt.colorbar(plan, boundaries = boundaries, shrink = 0.5)
     cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 8, verticalalignment = 'center')   
     plt.tight_layout()  
+    plt.close('all')
     plt.savefig('../figures/problem_node_%i_plan.png' %(node))
     plt.show()  
 

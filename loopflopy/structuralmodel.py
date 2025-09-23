@@ -322,9 +322,6 @@ class StructuralModel:
         for item in self.strat['sequence'].tolist():
             if item not in self.sequence_names:
                 self.sequence_names.append(item)
-        print(self.sequence_names)
-
-        print(x0, x1)
     
         X = np.linspace(x0, x1, nh)
         Y = np.linspace(y0, y1, nh)
@@ -346,7 +343,6 @@ class StructuralModel:
 
         # Evaluate model to plot lithology
         M = self.model.evaluate_model(xyz).reshape(nv, nh)
-        print(M.shape)
         csa = ax.imshow(np.ma.masked_where(M<0,M), origin = "lower", extent = [x0,x1,z0,z1], cmap = self.cmap, norm = self.norm, aspect = 'auto') 
         
         for val in self.strat['val'].tolist():

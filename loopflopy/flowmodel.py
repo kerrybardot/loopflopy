@@ -1,13 +1,95 @@
 import numpy as np
 from datetime import datetime
 import flopy
-import math
-import sys
-import os
 import matplotlib.pyplot as plt
-#import disv2disu
 
 class Flowmodel:
+    """
+    A groundwater flow modeling class which interacts with the Flopy MODFLOW 6 flow model.
+    
+    This class manages the complete workflow for creating, configuring, running,
+    and post-processing MODFLOW 6 groundwater flow simulations. It integrates
+    geological models, computational meshes, boundary conditions, and observation
+    data to create complete flow model simulations.
+    
+    Parameters
+    ----------
+    scenario : str
+        Name identifier for the flow model scenario.
+    project : Project
+        Project object containing workspace paths and executable locations.
+    data : Data
+        Data object containing boundary conditions, initial conditions, and
+        stress period data for wells, recharge, etc.
+    observations : Observations
+        Observations object containing monitoring well data and observation records.
+    mesh : Mesh
+        Mesh object containing computational grid and cell connectivity.
+    geomodel : Geomodel
+        Geological model object containing hydraulic properties and layer geometry.
+    *args, **kwargs
+        Additional arguments passed to the class.
+    
+    Attributes
+    ----------
+    scenario : str
+        Model scenario identifier.
+    project : Project
+        Project management object.
+    data : Data
+        Boundary condition and stress data.
+    mesh : Mesh
+        Computational mesh.
+    geomodel : Geomodel
+        Geological model with hydraulic properties.
+    observations : Observations
+        Observation well data.
+    lith : ndarray
+        Lithology codes for each model cell.
+    logk11, logk33 : ndarray
+        Logarithmic hydraulic conductivity values.
+    gwf : flopy.mf6.ModflowGwf
+        FloPy groundwater flow model object (set after running).
+    head : ndarray
+        Simulated hydraulic heads (set after running).
+    spd : ndarray
+        Specific discharge vectors (set after running).
+    qx, qy, qz : ndarray
+        Specific discharge components (set after running).
+    runtime : float
+        Model execution time in seconds.
+    
+    Notes
+    -----
+    The class follows a typical workflow:
+    1. Initialize with required data objects
+    2. Call write_flowmodel() to create MODFLOW 6 input files
+    3. Call run_flowmodel() to execute the simulation
+    4. Use plotting methods to visualize results
+    
+    The class automatically handles:
+    - DISU unstructured grid conversion
+    - Newton-Raphson solver configuration
+    - Multiple solver fallback strategies for difficult convergence
+    - Post-processing of heads and flow results
+    
+    Examples
+    --------
+    >>> # Create and run a flow model
+    >>> fm = Flowmodel('steady_state', project, data, obs, mesh, geomodel)
+    >>> sim, gwf = fm.write_flowmodel(chd=True, wel=True, obs=True)
+    >>> fm.run_flowmodel(sim)
+    >>> 
+    >>> # Plot results
+    >>> watertable = fm.get_watertable(geomodel, [fm.head])
+    >>> fm.plot_watertable(spatial, geomodel, fm, watertable)
+    
+    See Also
+    --------
+    Geomodel : For geological model and hydraulic property assignment
+    Mesh : For computational grid generation
+    Data : For boundary condition and stress period data
+    """
     
     def __init__(self, scenario, project, data, observations, mesh, geomodel, *args, **kwargs):     
 
@@ -33,6 +115,86 @@ class Flowmodel:
                         zbud = False,
                         newtonoptions = ['UNDER_RELAXATION'], 
                         **kwargs):
+        """
+        Write MODFLOW 6 simulation files with specified packages and options.
+        
+        Creates a complete MODFLOW 6 simulation including all necessary packages
+        based on the specified options. Handles both steady-state and transient
+        simulations with various boundary condition types.
+
+        ### NEEDS UPDATING TO INCLUDE ALL PACKAGES
+        
+        Parameters
+        ----------
+        transient : bool, optional
+            Whether to create a transient simulation (default: False).
+        xt3d : bool, optional
+            Whether to use XT3D option for improved accuracy on unstructured grids (default: True).
+        staggered : bool, optional
+            Whether to use staggered grid discretization (default: True).
+        chd : bool, optional
+            Include constant head boundary package (default: False).
+        rch : bool, optional
+            Include recharge package (default: False).
+        obs : bool, optional
+            Include observation package (default: False).
+        wel : bool, optional
+            Include well package (default: False).
+        ghb : bool, optional
+            Include general head boundary package (default: False).
+        evt : bool, optional
+            Include evapotranspiration package (default: False).
+        zbud : bool, optional
+            Include zone budget package (default: False).
+        newtonoptions : list, optional
+            Newton-Raphson solver options (default: ['UNDER_RELAXATION']).
+        **kwargs
+            Additional keyword arguments set as instance attributes.
+        
+        Returns
+        -------
+        sim : flopy.mf6.MFSimulation
+            MODFLOW 6 simulation object.
+        gwf : flopy.mf6.ModflowGwf
+            Groundwater flow model object.
+        
+        Notes
+        -----
+        The method creates the following MODFLOW 6 packages:
+        
+        Core Packages (always included):
+        - SIM: Simulation control
+        - TDIS: Time discretization
+        - IMS: Iterative model solution (solver)
+        - GWF: Groundwater flow model
+        - DISU: Unstructured discretization
+        - NPF: Node property flow package (hydraulic conductivity)
+        - IC: Initial conditions
+        - STO: Storage (with appropriate steady/transient settings)
+        - OC: Output control
+        
+        Optional Packages (based on flags):
+        - WEL: Wells (pumping/injection)
+        - CHD: Constant head boundaries
+        - GHB: General head boundaries
+        - RCH: Recharge
+        - EVT: Evapotranspiration
+        - OBS: Observations
+        
+        Solver Configuration:
+        - Uses BICGSTAB linear acceleration
+        - Configures preconditioner for unstructured grids
+        - Sets different tolerances for steady vs transient
+        - Enables Newton-Raphson for better convergence
+        
+        Examples
+        --------
+        >>> # Steady-state model with wells and boundaries
+        >>> sim, gwf = fm.write_flowmodel(chd=True, wel=True, obs=True)
+        >>>
+        >>> # Transient model with recharge and ET
+        >>> sim, gwf = fm.write_flowmodel(transient=True, rch=True, evt=True, wel=True)
+        """
 
         # Set all method parameters as instance attributes
         params = locals().copy()  # Get all local variables (method parameters)
@@ -45,7 +207,6 @@ class Flowmodel:
         for key, value in kwargs.items():
             setattr(self, key, value)
             
-        print('    evt = ', self.evt)
         t0 = datetime.now()
         print('Writing simulation and gwf for ', self.scenario, ' ...')
         print('    xt3d = ', xt3d)
@@ -100,8 +261,6 @@ class Flowmodel:
         # -------------- DIS -------------------------       
 
         from loopflopy import disv2disu
-        #from importlib import reload
-        #reload(disv2disu)
         Disv2Disu = disv2disu.Disv2Disu           
          
         dv2d = Disv2Disu(self.mesh.vertices, self.mesh.cell2d, self.geomodel.top, self.geomodel.botm, staggered=self.staggered, disv_idomain = self.geomodel.idomain,)
@@ -146,12 +305,13 @@ class Flowmodel:
                                                            sy = self.geomodel.sy,
                                                            #steady_state={0: True}
                                                            )
+        if self.wel:
             wel = flopy.mf6.modflow.mfgwfwel.ModflowGwfwel(gwf, 
-                                                           print_input=True, 
-                                                           print_flows=True, 
-                                                           stress_period_data = self.data.spd_wel, 
-                                                           save_flows=True,) 
-              
+                                                            print_input=True, 
+                                                            print_flows=True, 
+                                                            stress_period_data = self.data.spd_wel, 
+                                                            save_flows=True,) 
+                
         # -------------- GHB-------------------------
         if self.ghb:
             
@@ -206,11 +366,78 @@ class Flowmodel:
          # --------------------------------------------------------
         return(sim, gwf)
 
-    def run_flowmodel(self, sim, transient = False, zone_budget =False, zone_array = None):
+    def run_flowmodel(self, sim, transient = False):
+        """
+        Execute MODFLOW 6 simulation with automatic solver fallback strategies.
+        
+        Runs the MODFLOW 6 simulation with progressive solver adjustments if
+        convergence fails. Implements a three-tier strategy from moderate to
+        very aggressive solver settings to handle difficult convergence cases.
+        
+        Parameters
+        ----------
+        sim : flopy.mf6.MFSimulation
+            MODFLOW 6 simulation object to run.
+        transient : bool, optional
+            Whether this is a transient simulation (default: False).
+            Affects solver strategy if convergence fails.
+        
+        Notes
+        -----
+        Convergence Strategy:
+        
+        **First Attempt:** Uses original solver settings from write_flowmodel()
+        
+        **Second Attempt (if first fails):**
+        - Increases solver complexity to 'Complex'
+        - Tightens convergence criteria (1e-4 outer, 1e-6 inner)
+        - Enables backtracking with moderate settings
+        
+        **Third Attempt (if second fails):**
+        - Very tight convergence criteria (1e-6 outer, 1e-7 inner)
+        - Aggressive under-relaxation (DBD method)
+        - Enhanced preconditioner settings
+        - For transient: Increases timesteps to aid convergence
+        
+        Post-Processing (on successful run):
+        - Extracts hydraulic heads from output
+        - Processes specific discharge vectors
+        - Extracts boundary flows (CHD, GHB) if applicable
+        - Stores observation data if observations enabled
+        - Calculates qx, qy, qz velocity components
+        
+        Sets Attributes
+        ---------------
+        gwf : flopy.mf6.ModflowGwf
+            Groundwater flow model object.
+        head : ndarray
+            Hydraulic heads for final time step.
+        spd : ndarray
+            Specific discharge data structure.
+        qx, qy, qz : ndarray
+            Specific discharge components in x, y, z directions.
+        chdflow : ndarray
+            Constant head boundary flows (if CHD package used).
+        ghbflow : ndarray
+            General head boundary flows (if GHB package used).
+        obsdata : object
+            Observation data (if OBS package used).
+        runtime : float
+            Total execution time in seconds.
+        
+        Examples
+        --------
+        >>> # Run steady-state model
+        >>> fm.run_flowmodel(sim)
+        >>> print(f"Model converged in {fm.runtime:.2f} seconds")
+        >>> print(f"Head range: {fm.head.min():.2f} to {fm.head.max():.2f} m")
+        >>>
+        >>> # Run transient model
+        >>> fm.run_flowmodel(sim, transient=True)
+        """
     
         t0 = datetime.now()
-        self.zone_budget = zone_budget
-        self.zone_array = zone_array
+
         print('Running simulation for ', self.scenario, ' ...')
 
         success, buff = sim.run_simulation(silent = True)   
@@ -243,16 +470,6 @@ class Flowmodel:
                 obs_data = gwf.obs
                 self.obsdata = obs_data
 
-            if self.zone_budget == True:
-                
-                zb = flopy.utils.ZoneBudget6(bud, zone_array, exe_name='../exe/zbud6.exe')
-                zb.write_input()
-                zb.run_model()
-                zone_budget = zb.get_budget() # Get the budget for each zone
-                
-                for record in zone_budget: # Print the budget
-                    print(record)
-
             self.gwf = gwf
             self.head = head
             self.spd = spd
@@ -263,7 +480,7 @@ class Flowmodel:
             process_results()
 
         else:
-            print('\nRe-writing IMS - Take 2')
+            print('\nRe-writing IMS - Take 2 (SOMEWHAT MORE AGGRESSIVE)')
             sim.remove_package(package_name='ims')
             
             ims = flopy.mf6.ModflowIms(sim, print_option='ALL', 
@@ -290,7 +507,7 @@ class Flowmodel:
      
             
             else:
-                print('\nRe-writing IMS - Take 3')
+                print('\nRe-writing IMS - Take 3 (VERY AGGRESSIVE)')
                 
                 if transient:   # Increase number of timesteps to help convergence
                     future_years = 5
@@ -329,6 +546,54 @@ class Flowmodel:
                     process_results()
 
     def get_watertable(self, geomodel, heads, hdry=-1e30):
+        """
+        Extract water table elevation from 3D hydraulic head results.
+        
+        Determines the water table elevation at each model cell by finding
+        the uppermost active cell with a valid hydraulic head value.
+        
+        Parameters
+        ----------
+        geomodel : Geomodel
+            Geological model containing grid structure and active cell information.
+        heads : list of ndarray
+            List containing hydraulic head arrays. Typically [head_array] where
+            head_array has shape (ncell_disu,) for unstructured grids.
+        hdry : float, optional
+            Dry cell indicator value (default: -1e30).
+        
+        Returns
+        -------
+        watertable : ndarray
+            Water table elevation for each cell column (ncpl,).
+            Values of -999 indicate no water table found (all cells dry/inactive).
+        
+        Notes
+        -----
+        Algorithm:
+        1. Convert DISU head results to DISV format for layer-by-layer processing
+        2. For each cell column, search from top layer downward
+        3. Find first active cell (idomain=1) with valid head (not hdry)
+        4. Record that head value as water table elevation
+        
+        This method is essential for:
+        - Mapping phreatic surfaces in unconfined aquifers
+        - Calculating depth to groundwater
+        - Visualizing groundwater flow patterns
+        - Post-processing for ecological or agricultural applications
+        
+        Examples
+        --------
+        >>> # Extract water table from steady-state results
+        >>> watertable = fm.get_watertable(geomodel, [fm.head])
+        >>> print(f"Water table range: {watertable[watertable>-999].min():.1f} to "
+        ...       f"{watertable[watertable>-999].max():.1f} m")
+        >>>
+        >>> # Use with multiple time steps (transient)
+        >>> for t, head_t in enumerate(all_heads):
+        ...     wt = fm.get_watertable(geomodel, [head_t])
+        ...     print(f"Time {t}: Mean water table = {wt[wt>-999].mean():.2f} m")
+        """
         nlay, ncpl = geomodel.cellid_disv.shape
     
         head_disv = -999 * np.ones((geomodel.ncell_disv))  
@@ -348,7 +613,43 @@ class Flowmodel:
     
         return watertable
 
-    def plot_watertable(self, spatial, mesh, geomodel, flowmodel, watertable, **kwargs):
+    def plot_watertable(self, spatial, geomodel, flowmodel, watertable, 
+                        plot_grid = False, fname = '../figures/watertable.png', **kwargs):
+        """
+        Create a plan view plot of the water table elevation.
+        
+        Generates a colored contour map showing water table elevations across
+        the model domain with optional overlay of wells and grid lines.
+        
+        Parameters
+        ----------
+        spatial : Spatial
+            Spatial data object containing well locations and domain boundaries.
+        geomodel : Geomodel
+            Geological model containing grid structure for plotting.
+        flowmodel : Flowmodel
+            Flow model object (typically self) containing scenario information.
+        watertable : ndarray
+            Water table elevations for each cell (from get_watertable()).
+        plot_grid : bool, optional
+            Whether to overlay model grid lines (default: False).
+        fname : str, optional
+            Output filename for saving the plot (default: '../figures/watertable.png').
+        **kwargs
+            x0, y0, x1, y1 : float
+                Plot extent boundaries (default: uses spatial domain bounds).
+        
+        Examples
+        --------
+        >>> # Plot water table with default settings
+        >>> watertable = fm.get_watertable(geomodel, [fm.head])
+        >>> fm.plot_watertable(spatial, geomodel, fm, watertable)
+        >>>
+        >>> # Plot with grid overlay and custom extent
+        >>> fm.plot_watertable(spatial, geomodel, fm, watertable,
+        ...                    plot_grid=True, x0=700000, x1=710000,
+        ...                    fname='../figures/detailed_watertable.png')
+        """
         x0 = kwargs.get('x0', spatial.x0)
         y0 = kwargs.get('y0', spatial.y0)
         x1 = kwargs.get('x1', spatial.x1)
@@ -359,6 +660,8 @@ class Flowmodel:
         ax.set_title(flowmodel.scenario, size = 10)
         mapview = flopy.plot.PlotMapView(modelgrid=geomodel.vgrid)#, layer = layer)
         plan = mapview.plot_array(watertable, cmap='Spectral', alpha=0.8)#, vmin = vmin, vmax = vmax)
+        if plot_grid:
+            mapview.plot_grid(color = 'black', lw = 0.4)
         #if vectors:
         #    mapview.plot_vector(flowmodel.spd["qx"], flowmodel.spd["qy"], alpha=0.5)
         ax.set_xlabel('x (m)', size = 10)
@@ -374,14 +677,53 @@ class Flowmodel:
             ax.plot(spatial.xypumpbores[j][0], spatial.xypumpbores[j][1],'o', ms = '4', c = 'red')
             #ax.annotate(spatial.idpumpbores[j], (spatial.xypumpbores[j][0], spatial.xypumpbores[j][1]+100), c='red', size = 10) #, weight = 'bold')
             
-        if mesh.plangrid == 'car': mesh.sg.plot(color = 'black', lw = 0.2) 
-        if mesh.plangrid == 'tri': mesh.tri.plot(edgecolor='black', lw = 0.2)
-        if mesh.plangrid == 'vor': mesh.vor.plot(edgecolor='black', lw = 0.2)
         #ax.plot([extent[0], extent[1]], [extent[2], extent[3]], color = 'black', lw = 1)
         plt.tight_layout() 
-        plt.savefig('../figures/watertable.png')
+        plt.savefig(fname)
 
-    def plot_plan(self, spatial, mesh, array, layer, extent = None, vmin = None, vmax = None, vectors = None):
+    def plot_plan(self, spatial, mesh, array, layer, extent = None, 
+                  vmin = None, vmax = None, vectors = None):
+        """
+        Create a plan view plot of any model array with optional flow vectors.
+        
+        Generates a plan view visualization of specified model results (heads,
+        hydraulic conductivity, etc.) with optional flow vector overlay and
+        well locations.
+        
+        Parameters
+        ----------
+        spatial : Spatial
+            Spatial data object containing well locations.
+        mesh : Mesh
+            Mesh object for grid plotting (if needed).
+        array : str
+            Name of the flowmodel attribute to plot (e.g., 'head', 'logk11').
+        layer : int
+            Model layer to plot (may not be used depending on array type).
+        extent : list, optional
+            Plot extent as [x0, x1, y0, y1] (default: None).
+        vmin, vmax : float, optional
+            Color scale limits (default: None, auto-scale).
+        vectors : bool, optional
+            Whether to overlay flow vectors (default: None/False).
+        
+        Notes
+        -----
+        This general-purpose plotting method can visualize:
+        - Hydraulic heads ('head')
+        - Hydraulic conductivity ('logk11', 'logk33')
+        - Any other flowmodel attribute arrays
+        - Flow vectors (qx, qy) if requested
+        
+        Examples
+        --------
+        >>> # Plot hydraulic heads
+        >>> fm.plot_plan(spatial, mesh, 'head', 0, vmin=50, vmax=150)
+        >>>
+        >>> # Plot with flow vectors
+        >>> fm.plot_plan(spatial, mesh, 'head', 0, vectors=True,
+        ...              extent=[700000, 710000, 6200000, 6210000])
+        """
         
         fig = plt.figure(figsize = (8,6))
         ax = plt.subplot(111)
@@ -412,7 +754,78 @@ class Flowmodel:
     def plot_transect(self, mesh, spatial, geomodel, array, title = None, grid = True,
                       vmin = None, vmax = None, lithology = False, contours = False, levels = None, 
                       vectors = None, kstep = None, hstep = None, normalize = True,
-                      **kwargs): # array needs to be a string of a property eg. 'k11', 'angle2'
+                      **kwargs):
+        """
+        Create a cross-sectional plot of model results along a transect line.
+        
+        Generates a 2D cross-section showing the vertical distribution of any
+        model property (heads, hydraulic conductivity, etc.) with optional
+        overlays of geological layers, contours, and flow vectors.
+        
+        Parameters
+        ----------
+        mesh : Mesh
+            Mesh object containing grid information.
+        spatial : Spatial
+            Spatial data object for transect coordinates.
+        geomodel : Geomodel
+            Geological model for layer boundaries and coordinates.
+        array : str
+            Name of the flowmodel attribute to plot (e.g., 'head', 'k11').
+        title : str, optional
+            Plot title (default: None).
+        grid : bool, optional
+            Whether to show model grid lines (default: True).
+        vmin, vmax : float, optional
+            Color scale limits (default: None, auto-scale).
+        lithology : bool, optional
+            Whether to overlay geological layer boundaries (default: False).
+        contours : bool, optional
+            Whether to add contour lines (default: False).
+        levels : array_like, optional
+            Contour levels (required if contours=True).
+        vectors : bool, optional
+            Whether to overlay flow vectors (default: None/False).
+        kstep, hstep : int, optional
+            Vector plotting step size in horizontal and vertical directions.
+        normalize : bool, optional
+            Whether to normalize vector lengths (default: True).
+        **kwargs
+            x0, y0, x1, y1 : float
+                Transect line coordinates (default: spatial domain bounds).
+            z0, z1 : float
+                Vertical extent (default: geomodel bounds).
+        
+        Notes
+        -----
+        This method creates detailed cross-sectional visualizations showing:
+        
+        Optional Overlays:
+        - Model grid lines for reference
+        - Geological layer boundaries from geomodel
+        - Contour lines with labels
+        - 3D flow vectors (qx, qy, qz components)
+        
+        The transect is created using FloPy's PlotCrossSection functionality
+        which automatically interpolates 3D data onto the specified transect line.
+        
+        Examples
+        --------
+        >>> # Basic head transect
+        >>> fm.plot_transect(mesh, spatial, geomodel, 'head',
+        ...                  title='Hydraulic Head Cross-Section')
+        >>>
+        >>> # Detailed analysis with all overlays
+        >>> levels = np.arange(50, 150, 5)
+        >>> fm.plot_transect(mesh, spatial, geomodel, 'head',
+        ...                  lithology=True, contours=True, levels=levels,
+        ...                  vectors=True, kstep=5, hstep=2)
+        >>>
+        >>> # Hydraulic conductivity transect
+        >>> fm.plot_transect(mesh, spatial, geomodel, 'k11',
+        ...                  title='Horizontal Hydraulic Conductivity',
+        ...                  vmin=1e-6, vmax=1e-3)
+        """
         x0 = kwargs.get('x0', spatial.x0)
         y0 = kwargs.get('y0', spatial.y0)
         x1 = kwargs.get('x1', spatial.x1)
@@ -420,14 +833,14 @@ class Flowmodel:
         z0 = kwargs.get('z0', geomodel.z0)
         z1 = kwargs.get('z1', geomodel.z1)
     
-        fig = plt.figure(figsize = (8,3))
+        fig = plt.figure(figsize = (8,2))
         ax = plt.subplot(111)
         
         if title is not None:
             ax.set_title(title, size = 10)
       
         xsect = flopy.plot.PlotCrossSection(model=self.gwf, line={"line": [(x0, y0),(x1, y1)]}, 
-                                            extent = [x0, x1, z0, z1], 
+                                            #extent = [x0, x1, z0, z1], 
                                             geographic_coords=True)
         csa = xsect.plot_array(a = getattr(self, array), cmap = 'Spectral', alpha=0.8, vmin = vmin, vmax = vmax)
 

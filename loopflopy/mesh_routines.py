@@ -291,18 +291,18 @@ def prepboremesh(spatial, mesh):
         return(pump_bores_inner, pump_bores_outer) #, obs_bores_inner, obs_bores_outer)
 
 
-def prepare_fault_nodes_voronoi(P, shpfilepath, model_boundary, inner_boundary):
+def prepare_fault_nodes_voronoi(faults_gdf, model_boundary_poly, inner_boundary_poly, fault_buffer):
     # Import fault and turn into a linestring
     #gdf = gpd.read_file('../shp/badaminna_fault.shp') 
-    
-    gdf = gpd.read_file(shpfilepath) 
-    fault = gpd.clip(gdf, model_boundary) # fault is a gdf
+
+    gdf = faults_gdf
+    fault = gpd.clip(gdf, model_boundary_poly) # fault is a gdf
     df = fault.get_coordinates()
     fault_points = list(zip(list(df.x), list(df.y)))
     fault_linestring = LineString(fault_points)
 
     # Settings to make point cloud
-    L = P.fault_buffer
+    L = fault_buffer
     Lfault = fault.length
     r = 2*L/3 # distance between points
 
@@ -314,7 +314,7 @@ def prepare_fault_nodes_voronoi(P, shpfilepath, model_boundary, inner_boundary):
         ls_resample = resample_linestring(ls, r)
         p = []
         for point in ls_resample:
-            if inner_boundary.contains(point):
+            if inner_boundary_poly.contains(point):
                 x,y = point.x, point.y
                 p.append((x,y))
         offset_ls = LineString(p)

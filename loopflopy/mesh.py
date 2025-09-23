@@ -11,7 +11,95 @@ from flopy.utils.voronoi import VoronoiGrid
 from matplotlib import gridspec
 from matplotlib.colors import BoundaryNorm, ListedColormap
 
-class Mesh:    
+class Mesh:
+    """
+    A computational mesh class for creating 2D and 3D grids for MODFLOW 6 flows.
+    
+    This class handles creation of structured (Cartesian), triangular, and Voronoi meshes
+    for use with MODFLOW 6. It supports both areal models and 2D transect models with
+    various refinement options around wells and other features.
+    
+    Parameters
+    ----------
+    plangrid : str
+        Type of horizontal discretization scheme:
+        - 'car': Cartesian (structured) grid
+        - 'tri': Triangular (unstructured) grid  
+        - 'vor': Voronoi (unstructured) grid
+        - 'transect': transect (structured) grid
+    **kwargs
+        Additional keyword arguments including:
+        - special_cells: dict defining cells requiring special treatment
+        - Grid-specific parameters (ncol, nrow, angle, radius1, radius2, etc.)
+    
+    Attributes
+    ----------
+    plangrid : str
+        Grid type identifier (car, tri, vor, transect)
+    ncpl : int
+        Number of cells per layer in the horizontal plane.
+    cell2d : list
+        Cell connectivity information for DISV format.
+    vertices : list
+        Vertex coordinates for DISV format.
+    xcyc : list
+        Cell center coordinates as (x, y) tuples.
+    xc, yc : list
+        Separate lists of x and y cell center coordinates.
+    vgrid : flopy.discretization.VertexGrid
+        FloPy vertex grid object for visualization and intersection operations.
+    gi : flopy.utils.GridIntersect
+        Grid intersection utility for finding cells intersecting geometries.
+    idomain : ndarray
+        Active cell array (1=active, 0=inactive). Still need to upgrade car to exclude inactive cells.
+    ibd : ndarray
+        Special cell identification array for boundary conditions.
+    
+    Grid-Specific Attributes
+    ------------------------
+    For Cartesian grids:
+        delx, dely : float
+            Cell spacing in x and y directions.
+        ncol, nrow : int
+            Number of columns and rows.
+        sg : flopy.discretization.StructuredGrid
+            FloPy structured grid object.
+    
+    For Triangular/Voronoi grids:
+        tri : flopy.utils.triangle.Triangle
+            Triangle mesh generator object.
+        vor : flopy.utils.voronoi.VoronoiGrid
+            Voronoi grid generator object (for 'vor' type).
+        nodes : ndarray
+            Constraint nodes for mesh generation.
+        polygons : list
+            Constraint polygons for mesh generation.
+    
+    For Transect grids:
+        length : float
+            Total length of transect.
+        angrot : float
+            Rotation angle of transect from east.
+        L : list
+            Distance along transect for each cell center.
+    
+    Examples
+    --------
+    >>> # Create a triangular mesh
+    >>> mesh = Mesh('tri', angle=30, modelmaxtri=5000)
+    >>> mesh.prepare_nodes_and_polygons(spatial, 
+    ...                                 ['boundary_nodes'], 
+    ...                                 ['model_boundary_poly'])
+    >>> mesh.create_mesh(project, spatial)
+    >>>
+    >>> # Create a transect mesh
+    >>> mesh = Mesh('car')
+    >>> mesh.create_mesh_transect(crs=32750, x0=0, x1=1000, y0=0, y1=0, 
+    ...                          ncol=20, delc=50)
+    >>>
+    >>> # Locate special cells for boundary conditions
+    >>> mesh.locate_special_cells(spatial, threshold=0.8)
+    """    
     def __init__(self, plangrid, **kwargs):       
         self.plangrid = plangrid
         
@@ -26,6 +114,41 @@ class Mesh:
 
 #### 
     def create_bore_refinement(self, spatial):
+        """
+        Create mesh refinement nodes around pumping wells.
+        
+        Generates additional constraint nodes in concentric patterns around
+        pumping well locations to ensure adequate mesh refinement for accurate
+        simulation of well hydraulics.
+        
+        Parameters
+        ----------
+        spatial : Spatial
+            Spatial data object containing pumping well coordinates.
+        
+        Notes
+        -----
+        For triangular grids ('tri'):
+        - Creates triangular vertex patterns around each well
+        - Uses two rings of triangular vertices at different radii
+        
+        For Voronoi grids ('vor'):
+        - Creates circular patterns of nodes around each well
+        - Uses single ring of evenly spaced nodes
+        
+        For Cartesian grids ('car'):
+        - No refinement applied (structured grids have fixed geometry)
+        
+        The refinement radii are controlled by self.radius1 and self.radius2
+        attributes which should be set during mesh initialization.
+        
+        Sets Attributes
+        ---------------
+        welnodes : list
+            List of vertex coordinates for well refinement.
+        spatial.bore_refinement_nodes : list
+            Flattened list of all refinement nodes added to spatial object.
+        """
 
         self.welnodes = []
         self.welnodes2 = []
@@ -76,20 +199,7 @@ class Mesh:
                 for bore in range(2*spatial.npump): # x 2 because inner and outer ring of vertices
                     for node in range(len(self.welnodes[bore])):
                         spatial.bore_refinement_nodes.append(self.welnodes[bore][node])
-    #
-    #           theta = np.linspace(0, 2 * np.pi, 11)
-    #           for i in spatial.xypumpbores:   
-    #               X = i[0] + self.radius1 * np.cos(theta)
-    #               Y = i[1] + self.radius1 * np.sin(theta)    
-    #               vertices1 = [(x_val, y_val) for x_val, y_val in zip(X, Y)]
-    #               X = i[0] + self.radius2 * np.cos(theta)
-    #               Y = i[1] + self.radius2 * np.sin(theta)    
-    #               vertices2 = [(x_val, y_val) for x_val, y_val in zip(X, Y)]
-    #               self.welnodes.append(vertices1)
-    #               self.welnodes.append(vertices2)
-    #               #self.welnodes2.append(vertices2)
                         
-            
             if self.plangrid == 'vor':
 
                 print("Creating bore refinement nodes for pumping bores")
@@ -110,6 +220,51 @@ class Mesh:
                         spatial.bore_refinement_nodes.append(self.welnodes[bore][node])
 
     def prepare_nodes_and_polygons(self, spatial, node_list, polygon_list):
+        """
+        Prepare constraint nodes and polygons for unstructured mesh generation.
+        
+        Collects constraint nodes and polygons from the spatial object to guide
+        mesh generation for triangular and Voronoi grids. These constraints ensure
+        mesh boundaries align with important features like faults, rivers, and
+        model boundaries.
+        
+        Parameters
+        ----------
+        spatial : Spatial
+            Spatial data object containing geometric features.
+        node_list : list of str
+            Names of spatial attributes containing constraint nodes.
+            Each attribute should be a list of (x, y) coordinate tuples.
+            Must end in '_nodes' to be recognized as node lists.
+        polygon_list : list of str
+            Names of spatial attributes containing constraint polygons.
+            Each attribute should be a Shapely Polygon object.
+            Must end in '_poly' to be recognized as polygon lists.
+        
+        Examples
+        --------
+        >>> mesh.prepare_nodes_and_polygons(spatial,
+        ...     ['fault_nodes', 'river_nodes'],
+        ...     ['model_boundary_poly', 'inner_boundary_poly'])
+        
+        Notes
+        -----
+        The method validates that:
+        - Node attributes are lists of coordinate tuples
+        - Polygon attributes are Shapely Polygon objects
+        
+        For polygons, it extracts:
+        - Boundary coordinates from exterior ring
+        - Representative point for area constraints
+        - Maximum triangle area from self.modelmaxtri
+        
+        Sets Attributes
+        ---------------
+        nodes : ndarray
+            Array of all constraint node coordinates.
+        polygons : list
+            List of polygon constraint tuples: (coords, point, max_area).
+        """
         self.nodes = []
         for n in node_list: # e.g. n could be "faults_nodes"
             print(n)
@@ -133,6 +288,67 @@ class Mesh:
             
     
     def create_mesh(self, project, spatial):
+        """
+        Create the computational mesh based on the specified grid type.
+        
+        Generates the appropriate mesh type (Cartesian, triangular, or Voronoi)
+        using the prepared constraints and spatial boundaries. Creates all necessary
+        grid data structures for use with FloPy and MODFLOW 6.
+
+        If Transect grid is specified, use create_mesh_transect() or
+        create_irregular_mesh_transect() instead.
+        
+        Parameters
+        ----------
+        project : Project
+            Project object containing workspace and executable paths.
+        spatial : Spatial
+            Spatial data object with model boundaries and constraints.
+        
+        Notes
+        -----
+        Grid Types:
+        
+        Cartesian ('car'):
+        - Creates regular rectangular grid
+        - Uses spatial.x0, x1, y0, y1 for boundaries
+        - Requires self.ncol, self.nrow for discretization
+        - Automatically sets idomain based on model_boundary_poly
+        - Needs upgrade to exclude inactive cells
+        
+        Triangular ('tri'):
+        - Uses Triangle mesh generator with constraint nodes and polygons
+        - Respects angle constraints (self.angle)
+        - Applies area constraints from polygon definitions
+        - Creates unstructured triangular elements
+        
+        Voronoi ('vor'):
+        - First generates triangular mesh as foundation
+        - Converts to Voronoi cells using dual mesh approach
+        - Results in convex polygonal cells
+        - Good for natural groundwater flow patterns
+        
+        Sets Attributes
+        ---------------
+        ncpl : int
+            Number of cells per layer.
+        cell2d : list
+            Cell connectivity for DISV format.
+        vertices : list
+            Vertex coordinates.
+        xcyc : list
+            Cell center coordinates.
+        xc, yc : list
+            Separate x and y coordinate lists.
+        vgrid : flopy.discretization.VertexGrid
+            FloPy grid object for visualization.
+        gi : flopy.utils.GridIntersect
+            Grid intersection utility.
+        idomain : ndarray
+            Active cell array.
+        
+        Plus grid-specific attributes like tri, vor, sg, delx, dely, etc.
+        """
 
         if self.plangrid == 'car':
             print("Creating structured grid")
@@ -250,17 +466,6 @@ class Mesh:
             self.vertices = self.vor.get_disv_gridprops()['vertices']
             self.cell2d = self.vor.get_disv_gridprops()['cell2d']
 
-            # Check northernmost cell centre not on the boundary, if so, shift down
-            yc = [row[2] for row in self.cell2d]
-            max_yc = np.max(yc)           
-            bounds = spatial.model_boundary_poly.bounds # Get the bounds of the polygon (minx, miny, maxx, maxy)
-            max_ybound = bounds[3]  # maxy is at index 3
-
-            if max_yc >= max_ybound:
-                index = np.where(yc >= max_yc)[0][0]
-                print(f'Cell {index} is on the model boundary. Moving down by 0.1m')
-                self.cell2d[index][2] -= 0.1  
-
             self.ncpl = len(self.cell2d)
             self.idomain = np.ones((self.ncpl))            
             self.vgrid = flopy.discretization.VertexGrid(vertices=self.vertices, cell2d=self.cell2d, ncpl = self.ncpl, nlay = 1)
@@ -269,54 +474,56 @@ class Mesh:
                 self.xcyc.append((cell[1],cell[2]))
             self.xc, self.yc = list(zip(*self.xcyc))
 
-    '''def create_mesh_transect(self, x0, x1, y0, y1, delr, delc): # delr is a list of column widths
-        if self.plangrid == 'transect':
-
-            self.ncol = len(delr) # number of columns in transect
-            self.nrow = 1
-            self.ncpl = self.ncol * self.nrow
-            delr = np.array(delr)
-            delc = delc * np.ones(self.nrow, dtype=float)
-            top  = np.ones((self.nrow, self.ncol), dtype=float)
-            botm = np.zeros((1, self.nrow, self.ncol), dtype=float)
-            
-            angrot = np.degrees(np.arctan((y0 - y1)/(x0 - x1)))
-            print('angrot ', angrot)   
-            sg = flopy.discretization.StructuredGrid(delr=delr, delc=delc, top=top, botm=botm, 
-                                                    xoff = x0, yoff = y0, angrot = angrot)
-                                                    
-            xyzcenters = sg.xyzcellcenters
-            xcenters = xyzcenters[0][0]
-            ycenters = xyzcenters[1][0]
-            iverts = sg.iverts
-            verts = sg.verts
-
-            cell2d = []
-            xcyc = [] # added 
-            for icpl in range(self.ncpl):
-                xc = xcenters[icpl]
-                yc = ycenters[icpl]
-                iv1, iv2, iv3, iv4 = iverts[icpl]
-                cell2d.append([icpl, xc, yc, 5, iv1, iv2, iv3, iv4, iv1])
-                xcyc.append((xc, yc))
-            
-            vertices = []
-            for v in range(len(verts)):
-                i,j = verts[v]
-                vertices.append([v, i, j]) # need to make 1 based
-
-            self.sg = sg    
-            self.cell2d = cell2d
-            self.xcyc = xcyc
-            self.xc, self.yc = list(zip(*self.xcyc))
-            self.vertices = vertices
-            self.xyzcenters = xyzcenters
-            self.xcenters, self.ycenters = xcenters, ycenters
-            self.idomain = np.ones((self.ncpl))
-            self.vgrid = flopy.discretization.VertexGrid(vertices=self.vertices, cell2d=self.cell2d, ncpl = self.ncpl, nlay = 1)
-            self.gi = flopy.utils.GridIntersect(self.vgrid)'''
-
-    def create_irregular_mesh_transect(self, crs, x0, x1, y0, y1, delc, delr): # delr and delc arrays
+    def create_irregular_mesh_transect(self, crs, x0, x1, y0, y1, delc, delr):
+        """
+        Create a 2D transect mesh with variable column spacing.
+        
+        Generates a 1D mesh along a specified transect line with user-defined
+        column widths. This allows for refined discretization in areas of interest
+        while maintaining coarser spacing elsewhere.
+        
+        Parameters
+        ----------
+        crs : int or str
+            Coordinate reference system (EPSG code or WKT string).
+        x0, y0 : float
+            Starting coordinates of transect line.
+        x1, y1 : float
+            Ending coordinates of transect line.
+        delc : float
+            Width of transect in perpendicular direction (m).
+            This doesnt't really matter for transect models.
+        delr : array_like
+            Array of column widths along transect (m). Length determines ncol.
+        
+        Notes
+        -----
+        Unlike create_mesh_transect(), this method allows variable spacing:
+        - Each element in delr defines width of one column
+        - Total transect length is sum of delr values
+        - Enables local refinement around wells or other features
+        
+        The method is particularly useful for:
+        - Detailed modeling near pumping wells
+        - Capturing sharp gradients in specific zones
+        - Matching field measurement spacing
+        
+        Sets Attributes
+        ---------------
+        Similar to create_mesh_transect(), plus:
+        delr : ndarray
+            Variable column widths as provided.
+        ncol : int
+            Number of columns (= len(delr)).
+        
+        Examples
+        --------
+        >>> # Create transect with fine spacing near center
+        >>> delr = [50, 50, 10, 10, 5, 5, 5, 10, 10, 50, 50]  # 11 columns
+        >>> mesh = Mesh('car')
+        >>> mesh.create_irregular_mesh_transect(crs=32750, x0=0, x1=sum(delr),
+        ...                                     y0=0, y1=0, delc=10, delr=delr)
+        """
         self.x0 = x0
         self.y0 = y0
         self.x1 = x1
@@ -398,7 +605,69 @@ class Mesh:
             distance = np.sqrt((start_x - self.xc[cell])**2 + (start_y - self.yc[cell])**2 + delr/2)
             self.L.append(distance)
 
-    def create_mesh_transect(self, crs, x0, x1, y0, y1, ncol, delc): # delr is a list of column widths
+    def create_mesh_transect(self, crs, x0, x1, y0, y1, ncol, delc):
+        """
+        Create a 2D transect mesh with uniform column spacing.
+        
+        Generates a 1D mesh along a specified transect line for 2D cross-sectional
+        modeling. The mesh is created as a thin structured grid rotated to align
+        with the transect direction.
+        
+        Parameters
+        ----------
+        crs : int or str
+            Coordinate reference system (EPSG code or WKT string).
+        x0, y0 : float
+            Starting coordinates of transect line.
+        x1, y1 : float
+            Ending coordinates of transect line.
+        ncol : int
+            Number of columns (cells) along transect.
+        delc : float
+            Width of transect in perpendicular direction (m).
+        
+        Notes
+        -----
+        The method:
+        1. Calculates transect length and rotation angle
+        2. Creates uniform column spacing (delr = length/ncol)
+        3. Generates structured grid aligned with transect
+        4. Converts to DISV format for compatibility
+        5. Calculates distance along transect for each cell
+        
+        The resulting mesh is suitable for:
+        - 2D cross-sectional flow modeling
+        - Transient transport simulations
+        - Detailed analysis along specific flow paths
+        
+        Sets Attributes
+        ---------------
+        length : float
+            Total length of transect (m).
+        angrot : float
+            Rotation angle from east (degrees).
+        ncol, nrow : int
+            Number of columns and rows (nrow=1).
+        ncpl : int
+            Number of cells per layer (= ncol).
+        delr, delc : float or ndarray
+            Cell spacing in row and column directions.
+        L : list
+            Distance along transect for each cell center.
+        coords : list
+            Start and end coordinates of transect.
+        ls : LineString
+            Shapely LineString geometry of transect.
+        gdf : GeoDataFrame
+            GeoPandas DataFrame containing transect geometry.
+        
+        Examples
+        --------
+        >>> # Create 500m transect with 25 cells
+        >>> mesh = Mesh('car')
+        >>> mesh.create_mesh_transect(crs=32750, x0=700000, x1=700500, 
+        ...                          y0=6200000, y1=6200000, ncol=25, delc=10)
+        """
         self.x0 = x0
         self.y0 = y0
         self.x1 = x1
@@ -482,6 +751,67 @@ class Mesh:
             self.L.append(distance)
     
     def locate_special_cells(self, spatial, threshold = 1.0):
+        """
+        Identify and classify mesh cells requiring special treatment.
+        
+        Locates cells that intersect with important features like wells, boundaries,
+        and constraint polygons. These cells are flagged for special handling in
+        boundary condition and source/sink term assignment.
+        
+        Parameters
+        ----------
+        spatial : Spatial
+            Spatial data object containing feature geometries.
+        threshold : float, optional
+            Minimum fraction of cell area that must overlap with a feature
+            for the cell to be classified as 'special' (default: 1.0).
+        
+        Notes
+        -----
+        Supported Feature Types:
+        
+        - 'obs': Observation well points
+        - 'wel': Pumping well points  
+        - 'chd': Constant head boundaries (lines)
+        - 'ghb': General head boundaries (lines)
+        - 'poly': Single polygon features
+        - 'multipoly': Multi-polygon features 
+        
+        For each feature type, the method:
+        1. Finds intersecting cells using grid intersection
+        2. Assigns unique flag numbers for identification
+        3. Stores cell lists for each boundary condition type
+        4. Creates cell type labels for visualization
+        
+        The threshold parameter is particularly useful for polygon features
+        where you only want cells with significant overlap to be flagged.
+        
+        Sets Attributes
+        ---------------
+        obs_cells, wel_cells, chd_cells, ghb_cells : list
+            Lists of cell indices for each boundary condition type.
+        lak_cells, drn_cells, poly_cells : list
+            Additional cell lists for other feature types.
+        ibd : ndarray
+            Special cell flag array with unique ID for each feature.
+        cell_type : list
+            Descriptive labels for each flag value.
+        
+        Dynamic attributes are also created:
+        chd_{subgroup}_cells, ghb_{subgroup}_cells, etc.
+            Cell lists for specific feature subgroups.
+        
+        Examples
+        --------
+        >>> # Define special cells with observation and pumping wells
+        >>> special_cells = {
+        ...     'obs': ['monitoring'],
+        ...     'wel': ['production'],
+        ...     'chd': ['west', 'east']
+        ... }
+        >>> mesh = Mesh('tri', special_cells=special_cells)
+        >>> mesh.locate_special_cells(spatial, threshold=0.8)
+        """
         
         self.obs_cells = [] 
         self.wel_cells = [] 
@@ -608,7 +938,56 @@ class Mesh:
                     setattr(self, att_name, cells)
                     flag += 1
             
-    def plot_cell2d(self, spatial, features = None, xlim = None, ylim = None, nodes = False, labels = False):
+    def plot_cell2d(self, spatial, features = None, xlim = None, ylim = None, 
+                    nodes = False, labels = False, fname = '../figures/mesh.png'):
+        """
+        Plot the 2D mesh with optional overlay of spatial features.
+        
+        Creates a plan view visualization of the computational mesh showing
+        cell boundaries, centers, and optionally various spatial features
+        like wells, boundaries, and geological structures.
+        
+        Parameters
+        ----------
+        spatial : Spatial
+            Spatial data object containing feature geometries and geodataframes.
+        features : list of str, optional
+            Features to overlay on mesh plot. Options include:
+            - 'geo': Geological borehole locations
+            - 'obs': Observation well locations
+            - 'wel': Pumping well locations  
+            - 'fault': Fault lines
+            - 'river': River polygons
+        xlim, ylim : tuple, optional
+            Plot extent limits as (min, max) tuples.
+        nodes : bool, optional
+            Whether to plot constraint nodes used in mesh generation (default: False).
+        labels : bool, optional
+            Whether to add text labels to well locations (default: False).
+        fname : str, optional
+            Filename to save the plot (default: '../figures/mesh.png').
+        
+        Notes
+        -----
+        The plot includes:
+        - Mesh grid lines and cell centers (green dots)
+        - Model boundary (black solid line)
+        - Inner boundary (black dashed line)
+        - Selected features with appropriate symbols and colors
+        
+        Feature Styling:
+        - Geological bores: Green circles
+        - Observation wells: Dark blue circles
+        - Pumping wells: Red circles (larger)
+        - Faults: Red lines
+        - Rivers: Blue polygons with transparency
+        
+        Examples
+        --------
+        >>> # Plot mesh with wells and rivers
+        >>> mesh.plot_cell2d(spatial, features=['obs', 'wel', 'river'], 
+        ...                  labels=True, xlim=(700000, 710000))
+        """
         
         fig = plt.figure(figsize=(7,7))
         ax = plt.subplot(1, 1, 1, aspect='auto')
@@ -653,9 +1032,55 @@ class Mesh:
         if 'river' in features:
             spatial.river_gdf.plot(ax=ax, color = 'blue', alpha = 0.4, zorder=2)
 
-        plt.savefig('../figures/mesh.png')
+        plt.savefig(fname)
             
-    def plot_feature_cells(self, spatial, xlim = None, ylim = None, plot_grid = False): # e.g xlim = [700000, 707500]
+    def plot_feature_cells(self, spatial, xlim = None, ylim = None, 
+                           plot_grid = False, 
+                           fname = '../figures/special_cells.png'):
+        """
+        Plot mesh cells colored by special feature classification.
+        
+        Creates a visualization showing which cells have been identified as
+        'special' for boundary conditions or other purposes, with different
+        colors for each feature type and a legend explaining the classification.
+        
+        Parameters
+        ----------
+        spatial : Spatial
+            Spatial data object containing feature geometries.
+        xlim, ylim : tuple, optional
+            Plot extent limits as (min, max) tuples.
+        plot_grid : bool, optional
+            Whether to overlay mesh grid lines (default: False).
+        fname : str, optional
+            Filename to save the plot (default: '../figures/special_cells.png').
+        
+        Notes
+        -----
+        The visualization shows:
+        - Cells colored by their ibd (special cell) classification
+        - Different colors for each boundary condition type
+        - Wells and boundaries overlaid with appropriate symbols
+        - Colorbar with feature type labels
+        - Only active cells (idomain=1) are colored
+        
+        This plot is useful for:
+        - Verifying correct identification of boundary cells
+        - Quality control of mesh-feature intersection
+        - Understanding spatial distribution of boundary conditions
+        - Debugging boundary condition setup
+        
+        The plot uses matplotlib's 'tab20' colormap to provide distinct
+        colors for up to 20 different feature types.
+        
+        The plot is automatically saved to '../figures/special_cells.png'.
+        
+        Examples
+        --------
+        >>> # Plot special cells with grid overlay
+        >>> mesh.plot_feature_cells(spatial, plot_grid=True, 
+        ...                        xlim=(700000, 710000))
+        """
         
         fig = plt.figure(figsize=(7,5))
         spec = gridspec.GridSpec(nrows=1, ncols=2, width_ratios=[1, 0.05], wspace=0.2)
@@ -668,7 +1093,7 @@ class Mesh:
         pmv = flopy.plot.PlotMapView(ax = ax, modelgrid=self.vgrid)
         
         if plot_grid: 
-            pmv.plot_grid(color = 'gray', lw = 0.4)
+            pmv.plot_grid(color = 'black', lw = 0.4)
         else:
             pmv.plot_grid(visible=False)
 
@@ -720,10 +1145,58 @@ class Mesh:
         cbar = fig.colorbar(p, cax=cbar_ax, ticks=np.unique(self.ibd)+0.5, shrink = 0.1)  # Center tick labels
         cbar.ax.set_yticklabels(self.cell_type) # Custom tick labels
 
-        plt.savefig('../figures/special_cells.png')
+        plt.savefig(fname)
 
-    def plot_surface_array(self, array, structuralmodel, plot_data = False, lithcode = None,
-                           vmin = None, vmax = None, plot_grid = False, levels = None, title = None):
+    def plot_surface_array(self, array, structuralmodel, plot_data = False, 
+                           vmin = None, vmax = None, 
+                           plot_grid = False, 
+                           levels = None, title = None):
+        """
+        Plot a 2D array over the mesh surface with geological context.
+        
+        Creates a plan view visualization of any 2D array (e.g., hydraulic head,
+        surface elevation, lithology) with optional contours and geological data
+        overlay. Designed specifically for geological modeling applications.
+        
+        Parameters
+        ----------
+        array : array_like
+            2D array with values for each mesh cell (length = ncpl).
+        structuralmodel : StructuralModel
+            Structural model object containing geological data.
+        plot_data : bool, optional
+            Whether to overlay raw geological data points (default: False).
+        vmin, vmax : float, optional
+            Color scale limits (default: None, auto-scale).
+        plot_grid : bool, optional
+            Whether to show mesh grid lines (default: False).
+        levels : array_like, optional
+            Contour levels to draw (default: None, no contours).
+        title : str, optional
+            Plot title (default: None).
+        
+        Notes
+        -----
+        This method is optimized for geological applications and includes:
+        - Color-filled array visualization
+        - Optional contour lines with specified levels
+        - Overlay of original geological data points
+        - Proper handling of structural model data formats
+        
+        Useful for plotting:
+        - Surface elevation models
+        - Lithological classifications
+        - Hydraulic head distributions
+        - Model validation against field data
+        
+        Examples
+        --------
+        >>> # Plot surface elevation with 10m contours
+        >>> levels = np.arange(0, 200, 10)
+        >>> mesh.plot_surface_array(elevation_array, struct_model,
+        ...                        plot_data=True, levels=levels,
+        ...                        title='Ground Surface Elevation')
+        """
         
         fig = plt.figure(figsize=(7,7))
         ax = fig.add_subplot()
@@ -741,31 +1214,6 @@ class Mesh:
             df = structuralmodel.data
             ax.plot(df.X, df.Y, 'o', ms = 2, color = 'red')
     
-    '''def mesh_to_gdf(self):
-        if self.plangrid == 'vor':
-            vertices = self.vertices
-            cells = self.cell2d
-
-
-            #QAQC help if function isn't working
-            for cell in self.cell2d:
-                print("cell:", cell)
-                vertex_indices = cell[1:]
-                print("vertex indices:", vertex_indices)
-                print("max vertex index:", max(vertex_indices))
-                print("vertices length:", len(vertices))
-                #coords = [vertices[int(i)] for i in vertex_indices]
-
-            polygons = []
-            for cell in cells:
-                nverts = int(cell[3])
-                vertex_indices = cell[4:4 + nverts]
-                coords = [vertices[int(i)] for i in vertex_indices]
-                polygon = Polygon(coords)
-                polygons.append(polygon)
-
-            self.gdf = gpd.GeoDataFrame(geometry=polygons)'''
-    
     def plot_array(self, array, 
                    vmin = None, 
                    vmax = None, 
@@ -773,6 +1221,53 @@ class Mesh:
                    title = None, 
                    xlim = None, ylim = None,
                    xy = None):
+        """
+        Plot a 2D array over the mesh with optional point overlay.
+        
+        Creates a general-purpose plan view visualization of any 2D array
+        with customizable styling and optional point data overlay.
+        
+        Parameters
+        ----------
+        array : array_like
+            2D array with values for each mesh cell (length = ncpl).
+        vmin, vmax : float, optional
+            Color scale limits (default: None, auto-scale).
+        levels : array_like, optional
+            Contour levels to draw (default: None, no contours).
+        title : str, optional
+            Plot title (default: None).
+        xlim, ylim : tuple, optional
+            Plot extent limits as (min, max) tuples.
+        xy : tuple of array_like, optional
+            Point coordinates to overlay as (x_coords, y_coords).
+        
+        Notes
+        -----
+        This is a simplified, general-purpose plotting method that:
+        - Shows color-filled array values
+        - Optionally overlays point data in red
+        - Includes colorbar for scale reference
+        - Allows custom plot extents
+        
+        Unlike plot_surface_array(), this method doesn't include
+        geological-specific features but offers more flexible
+        point data overlay capabilities.
+        
+        Useful for:
+        - Quick visualization of model results
+        - Plotting hydraulic head, concentration, or velocity
+        - Overlaying measurement locations
+        - General array visualization tasks
+        
+        Examples
+        --------
+        >>> # Plot hydraulic head with well locations
+        >>> well_x = [700000, 705000, 710000]
+        >>> well_y = [6200000, 6205000, 6210000]
+        >>> mesh.plot_array(head_array, title='Hydraulic Head (m)',
+        ...                 xy=(well_x, well_y), vmin=50, vmax=150)
+        """
         
         fig = plt.figure(figsize=(7,7))
         ax = fig.add_subplot()

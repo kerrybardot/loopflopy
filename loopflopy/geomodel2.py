@@ -815,3 +815,29 @@ class Geomodel:
         cbar = fig.colorbar(p, cax=cbar_ax, shrink = 0.1)  # Center tick labels
 
         #plt.savefig('../figures/surface.png')
+
+    def geomodel_transect_array(self, spatial, array, title, grid = True,
+                                vmin = None, vmax = None, **kwargs):
+        x0 = kwargs.get('x0', spatial.x0)
+        y0 = kwargs.get('y0', spatial.y0)
+        z0 = kwargs.get('z0', self.z0)
+        x1 = kwargs.get('x1', spatial.x1)
+        y1 = kwargs.get('y1', spatial.y1)
+        z1 = kwargs.get('z1', self.z1)
+    
+        fig = plt.figure(figsize = (12,4))
+        ax = plt.subplot(111)
+        xsect = flopy.plot.PlotCrossSection(modelgrid=self.vgrid , line={"line": [(x0, y0),(x1, y1)]}, geographic_coords=True)
+        csa = xsect.plot_array(a = array, alpha=0.8, vmin = vmin, vmax = vmax)
+        ax.set_xlabel('x (m)', size = 10)
+        ax.set_ylabel('z (m)', size = 10)        
+        ax.set_ylim([z0, z1])
+  
+        if grid:
+            linecollection = xsect.plot_grid(lw = 0.1, color = 'black') 
+        
+        cbar = plt.colorbar(csa, shrink = 1.0)
+        plt.title(f"{title}\nx0, y0 = {x0:.0f}, {x1:.0f}: x1, y1 = {y0:.0f}, {y1:.0f}", size=8)
+        plt.tight_layout()  
+        plt.savefig(f'../figures/geomodel_transect_{title}.png')
+        plt.show() 
