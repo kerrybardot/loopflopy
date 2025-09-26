@@ -1017,7 +1017,7 @@ class Geomodel:
         y1 = kwargs.get('y1', spatial.y1)
         z1 = kwargs.get('z1', self.z1)
     
-        fig = plt.figure(figsize = (12,2))
+        fig = plt.figure(figsize = (12,4))
         ax = plt.subplot(111)
         #ax.set_aspect('equal')
         xsect = flopy.plot.PlotCrossSection(modelgrid=self.vgrid , line={"line": [(x0, y0),(x1, y1)]}, geographic_coords=True)
