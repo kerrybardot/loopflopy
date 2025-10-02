@@ -752,8 +752,8 @@ class Flowmodel:
         plt.savefig('../figures/plan_%s.png' % array)
 
     def plot_transect(self, mesh, spatial, geomodel, array, title = None, grid = True,
-                      vmin = None, vmax = None, lithology = False, contours = False, levels = None, 
-                      vectors = None, kstep = None, hstep = None, normalize = True,
+                      vmin = None, vmax = None, lithology = False, contours = False, levels = None, xlim = None, ylim = None,
+                      vectors = None, kstep = None, hstep = None, normalize = True, figsize = (12,4), label = None,
                       **kwargs):
         """
         Create a cross-sectional plot of model results along a transect line.
@@ -790,6 +790,11 @@ class Flowmodel:
             Vector plotting step size in horizontal and vertical directions.
         normalize : bool, optional
             Whether to normalize vector lengths (default: True).
+        figsize: tuple, optional
+            Figure size (default: (12,4)).
+        label : str, optional
+            Colorbar label (default: None).
+
         **kwargs
             x0, y0, x1, y1 : float
                 Transect line coordinates (default: spatial domain bounds).
@@ -833,7 +838,7 @@ class Flowmodel:
         z0 = kwargs.get('z0', geomodel.z0)
         z1 = kwargs.get('z1', geomodel.z1)
     
-        fig = plt.figure(figsize = (8,2))
+        fig = plt.figure(figsize = figsize)
         ax = plt.subplot(111)
         
         if title is not None:
@@ -865,8 +870,17 @@ class Flowmodel:
         
         ax.set_xlabel('x (m)', size = 10)
         ax.set_ylabel('z (m)', size = 10)
-        ax.set_ylim([z0,z1])
-        plt.colorbar(csa, shrink = 0.6)
+        
+        if ylim:
+            ax.set_ylim(ylim)
+        else:
+            ax.set_ylim([z0,z1])
+        if xlim: 
+            ax.set_xlim(xlim)
+        else:
+            ax.set_xlim([x0,x1])
+
+        plt.colorbar(csa, shrink = 0.6, label = label)
 
         plt.tight_layout()  
         plt.savefig('../figures/transect_%s.png' % array)
