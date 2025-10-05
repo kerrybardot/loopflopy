@@ -50,36 +50,70 @@ A small but powerful bridge between **LoopStructural** (3‑D geological modelli
 
 ## Install
 
-Loopflopy targets Python ≥3.10 on Linux/Windows.
+Loopflopy now uses a **PEP 621** `pyproject.toml` with the **Hatchling** build backend and a **`src/` layout**.
 
-### Dependencies (core)
+### Python & OS
 
-* `loopstructural` (geology)
-* `flopy` (MF6 IO + runners)
-* `numpy`, `pandas`, `scipy`
-* `geopandas`, `shapely`
-* `triangle` (Triangle executable available on PATH) and/or `meshpy` for meshing
-* (optional) ParaView for visualisation
+* Python **≥ 3.10** (tested up to 3.12)
+* Windows / Linux (macOS likely fine but less tested)
 
-### Option 1 — Conda env (recommended)
+### Option 1 — Create a fresh environment (recommended)
 
 ```bash
 # from the repo root
-conda env create -f environment.yml
+conda create -n loopflopy python=3.12 -y
 conda activate loopflopy
+# core package (minimal deps from [project.dependencies])
 pip install -e .
 ```
 
-### Option 2 — pip (dev install)
+### Option 2 — Install with extras
+
+The `pyproject.toml` defines optional dependency groups:
+
+* `gis`  – GeoPandas/Shapely/Fiona/Proj, raster IO & stats
+* `viz-3d` – PyVista/VTK/Trimesh for 3‑D viewing
+* `loop3d` – LoopStructural + helpers (shares PyVista/VTK)
+* `excel` – Excel IO (openpyxl/xlrd)
+* `notebook` – Jupyter/Lab/widgets
+* `examples` – *one‑stop pack* = `gis` + `loop3d` + `viz-3d` + `excel` + `notebook` + matplotlib
+* `dev`, `test`, `docs` – contributor toolchains
+
+Install one or many groups, e.g.:
 
 ```bash
-pip install -U pip
-pip install -e git+https://github.com/kerrybardot/loopflopy.git#egg=loopflopy
-# or, for your fork
-pip install -e git+https://github.com/<your-user>/loopflopy.git#egg=loopflopy
+# everything needed to run notebooks in examples/
+pip install -e .[examples]
+
+# for contributors
+pip install -e .[dev,test]
 ```
 
-> If MODFLOW 6 is not already on your PATH, install it (e.g., via `mamba install modflow6` or from the USGS releases) and make sure `mf6` is callable.
+> Note: `viz-3d` pins `pyvista<0.47` and `vtk==9.3.*` because newer combos can break rendering. Keep these versions in sync.
+
+### Option 3 — From Git (no local clone)
+
+```bash
+# main repo
+pip install "loopflopy @ git+https://github.com/kerrybardot/loopflopy.git"
+# or your fork
+pip install "loopflopy @ git+https://github.com/<your-user>/loopflopy.git"
+```
+
+### Build a wheel / sdist (for distribution)
+
+```bash
+pip install -U build
+python -m build
+# artifacts in dist/*.whl and dist/*.tar.gz
+```
+
+### External prerequisites
+
+* **MODFLOW 6** executable must be on PATH (`mf6`).
+
+  * Conda: `mamba install -c conda-forge modflow6`
+* (optional) **Triangle/Mesh tooling** if your workflow uses triangular meshing.
 
 ## Quick start
 
@@ -230,7 +264,28 @@ Please open an issue with a minimal script and error text if you’re stuck.
 
 ## Contributing
 
-Contributions are welcome! Typical flow:
+### Project layout
+
+* Source code: `src/loopflopy/`
+* Examples: `examples/`
+* Tests: `tests/` (if present)
+
+### Dev setup
+
+```bash
+conda create -n loopflopy-dev python=3.12 -y
+conda activate loopflopy-dev
+pip install -e .[dev,test]
+pre-commit install   # enable formatting/linting on commit
+```
+
+Run tests:
+
+```bash
+pytest -q --disable-warnings --maxfail=1
+```
+
+### Typical flow
 
 1. Fork and create a feature branch.
 2. Add/adjust examples and unit tests if relevant.
@@ -267,7 +322,7 @@ A BibTeX snippet (customise as needed):
 
 ## Contact
 
-Using Loopflopy? I’d love to hear from you—happy to help. [your.email@domain](mailto:your.email@domain)
+Using Loopflopy? I'd love to hear from you—happy to help. [kerry.bardot@uwa.edu.au](mailto:kerry.bardot@uwa.edu.au)
 
 ---
 
