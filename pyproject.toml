@@ -108,13 +108,14 @@ Issues = "https://github.com/kerrybardot/loopflopy/issues"
 
 [tool.hatch.build.targets.wheel]
 # src/ layout: the package lives in src/loopflopy
-packages = [{ include = "loopflopy", from = "src" }]
+packages = ["src/loopflopy"]
 
 [tool.hatch.build.targets.sdist]
-# Include source package and common top-level docs; adjust as needed.  "LICENSE" is missing
+# Include source package and common top-level docs; adjust as needed.
 include = [
   "pyproject.toml",
   "README.md",
+  "LICENSE",
   "src/loopflopy",
   "examples/**",
 ]
