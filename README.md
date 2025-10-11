@@ -50,7 +50,7 @@ A small but powerful bridge between **LoopStructural** (3‑D geological modelli
 
 ## Install
 
-Loopflopy now uses a **PEP 621** `pyproject.toml` with the **Hatchling** build backend and a **`src/` layout**.
+Loopflopy is packaged with a **PEP 621** `pyproject.toml` uses the **Hatchling** build backend, and a **`src/` layout**.
 
 ### Python & OS
 
@@ -64,12 +64,16 @@ Loopflopy now uses a **PEP 621** `pyproject.toml` with the **Hatchling** build 
 conda create -n loopflopy python=3.12 -y
 conda activate loopflopy
 # core package (minimal deps from [project.dependencies])
-pip install -e .
+pip install .
 ```
 
+Tip: If you plan to modify the code and want changes to take effect immediately, use an editable install instead:
+```bash
+pip install -e .
+```
 ### Option 2 — Install with extras
 
-The `pyproject.toml` defines optional dependency groups:
+Optional dependency groups defined in `pyproject.toml`:
 
 * `gis`  – GeoPandas/Shapely/Fiona/Proj, raster IO & stats
 * `viz-3d` – PyVista/VTK/Trimesh for 3‑D viewing
@@ -79,14 +83,18 @@ The `pyproject.toml` defines optional dependency groups:
 * `examples` – *one‑stop pack* = `gis` + `loop3d` + `viz-3d` + `excel` + `notebook` + matplotlib
 * `dev`, `test`, `docs` – contributor toolchains
 
-Install one or many groups, e.g.:
-
+User installs (non-editable):
 ```bash
 # everything needed to run notebooks in examples/
-pip install -e .[examples]
+pip install '.[examples]'
 
-# for contributors
-pip install -e .[dev,test]
+# docs toolchain
+pip install '.[docs]'
+```
+
+Developer/contributor installs (editable):
+```bash
+pip install -e '.[dev,test]'
 ```
 
 > Note: `viz-3d` pins `pyvista<0.47` and `vtk==9.3.*` because newer combos can break rendering. Keep these versions in sync.
@@ -94,10 +102,20 @@ pip install -e .[dev,test]
 ### Option 3 — From Git (no local clone)
 
 ```bash
-# main repo
+# install from the main repo
 pip install "loopflopy @ git+https://github.com/kerrybardot/loopflopy.git"
-# or your fork
+
+# or from a fork (replace with your user/repo)
 pip install "loopflopy @ git+https://github.com/<your-user>/loopflopy.git"
+```
+With extras over Git:
+
+```bash
+# examples extra directly from Git
+pip install "loopflopy[examples] @ git+https://github.com/kerrybardot/loopflopy.git"
+
+# or from your fork
+pip install "loopflopy[examples] @ git+https://github.com/<your-user>/loopflopy.git"
 ```
 
 ### Build a wheel / sdist (for distribution)
@@ -105,7 +123,7 @@ pip install "loopflopy @ git+https://github.com/<your-user>/loopflopy.git"
 ```bash
 pip install -U build
 python -m build
-# artifacts in dist/*.whl and dist/*.tar.gz
+# artifacts in dist/*.whl and dist/*.tar.gz (Hatchling backend as configured in pyproject.toml)
 ```
 
 ### External prerequisites
@@ -254,11 +272,10 @@ Please open an issue with a minimal script and error text if you’re stuck.
 
 ## Roadmap
 
-* CLI for batch / ensemble runs (CPz, D, fold params, etc.)
-* Better stochastic property generators and heterogeneity options
-* More examples & tests (including rivers/ET/streamflow routing, transport)
-* DISV ↔ DISU round‑trips and performance improvements
-* Built‑in **PEST++ IES** workflow for faster joint structural/hydraulic updates
+* More examples (including real‑world cases).
+* More tests and CI coverage.
+* Improved documentation.
+* Publish in PyPI and conda-forge.
 
 ---
 
@@ -268,7 +285,7 @@ Please open an issue with a minimal script and error text if you’re stuck.
 
 * Source code: `src/loopflopy/`
 * Examples: `examples/`
-* Tests: `tests/` (if present)
+* Tests: `tests/` (soon)
 
 ### Dev setup
 
@@ -288,8 +305,8 @@ pytest -q --disable-warnings --maxfail=1
 ### Typical flow
 
 1. Fork and create a feature branch.
-2. Add/adjust examples and unit tests if relevant.
-3. Run linters/tests locally.
+2. Add/adjust examples and unit tests if relevant(soon).
+3. Run linters/tests locally (soon).
 4. Open a PR with a clear description and motivation.
 
 Please also use the issue tracker for bug reports and feature requests.
@@ -300,7 +317,7 @@ Please also use the issue tracker for bug reports and feature requests.
 
 If loopflopy helps your work, please cite the paper describing this workflow and the core tools:
 
-* **Bardot, K.**, Grose, L., Camargo, I., Pirot, G., Siade, A., Pigois, J.-P., Hampton, C., McCallum, J. (2025). *A seamless geo‑flow modelling workflow to tackle structural uncertainty using LoopStructural and MODFLOW*. **Environmental Modelling & Software**, 192, 106557. [https://doi.org/10.1016/j.envsoft.2025.106557](https://doi.org/10.1016/j.envsoft.2025.106557)
+* **Bardot, K.**, Grose, L., Camargo, I., Pirot, G., Siade, A., Pigois, J.-P., Hampton, C., McCallum, J. (2025). *A seamless geo‑flow modelling workflow to tackle structural uncertainty using LoopStructural and MODFLOW*. Environmental Modelling & Software, 192, 106557. https://doi.org/10.1016/j.envsoft.2025.106557
 * **LoopStructural**: Grose, L. et al. (2021) *LoopStructural 1.0: time‑aware geological modelling*. GMD.
 * **FloPy/MODFLOW 6**: Bakker, M. et al. (2016) Groundwater; Langevin, C.D. et al. (2017) USGS T&M 6‑A55.
 
