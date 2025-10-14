@@ -64,13 +64,9 @@ Loopflopy is packaged with a **PEP 621** `pyproject.toml` uses the **Hatchling*
 conda create -n loopflopy python=3.12 -y
 conda activate loopflopy
 # core package (minimal deps from [project.dependencies])
-pip install .
+pip install  .
 ```
 
-Tip: If you plan to modify the code and want changes to take effect immediately, use an editable install instead:
-```bash
-pip install -e .
-```
 ### Option 2 — Install with extras
 
 Optional dependency groups defined in `pyproject.toml`:
@@ -83,17 +79,13 @@ Optional dependency groups defined in `pyproject.toml`:
 * `examples` – *one‑stop pack* = `gis` + `loop3d` + `viz-3d` + `excel` + `notebook` + matplotlib
 * `dev`, `test`, `docs` – contributor toolchains
 
-User installs (non-editable):
+Install one or many groups, e.g.:
+
 ```bash
 # everything needed to run notebooks in examples/
-pip install '.[examples]'
+pip install -e '.[examples]'
 
-# docs toolchain
-pip install '.[docs]'
-```
-
-Developer/contributor installs (editable):
-```bash
+# for contributors
 pip install -e '.[dev,test]'
 ```
 
@@ -128,53 +120,17 @@ python -m build
 
 ### External prerequisites
 
-* **MODFLOW 6** executable must be on PATH (`mf6`).
-
-  * Conda: `mamba install -c conda-forge modflow6`
 * (optional) **Triangle/Mesh tooling** if your workflow uses triangular meshing.
 
 ## Quick start
 
-Below is a minimal, end‑to‑end sketch. Exact class names and arguments may evolve—see the examples for a working script.
+(Soon)Below is a minimal, end‑to‑end sketch. Exact class names and arguments may evolve—see the examples for a working script.
 
 ```python
 from loopflopy.geomodel import Geomodel
 from loopflopy.mesh import Mesh
 from loopflopy.flowmodel import Flowmodel
 
-# 1) Build/evaluate geology (using a LoopStructural model you prepared elsewhere)
-geo = Geomodel(
-    loopstruct_model=your_loopstruct_model,
-    extent=[xmin, xmax, ymin, ymax, zmin, zmax],
-    dz=10.0,                   # nominal vertical resolution
-    lith_map=your_lithology_map,  # lithology -> unit codes
-)
-geo.evaluate_structuralmodel()       # evaluate lithology & gradients on points
-geo.create_model_layers(method="con")  # build hydrostratigraphic layers/sublayers
-
-# 2) Make a grid
-mesh = Mesh(
-    geomodel=geo,
-    gridkind="disv",          # 'disv' | 'disu' | 'car' (structured)
-    target_cellsize=200.0,
-)
-mesh.create_mesh()
-
-# 3) Assign properties from geology
-geo.fill_cell_properties(
-    k_by_lith={"sand": 1e-4, "silt": 1e-6, "basement": 1e-8},
-    anisotropy_from_gradients=True,
-)
-
-# 4) Build & run the MF6 model
-fm = Flowmodel(mesh=mesh, name="demo")
-fm.write_flowmodel(
-    chd=your_chd_list, ghb=your_ghb_list, wel=your_wells, rch=your_rch,
-)
-fm.run_flowmodel()
-
-# 5) Access results (via FloPy)
-hdobj = fm.mf6_output.head()
 ```
 
 ---
@@ -261,10 +217,9 @@ See the `examples/` folder for runnable notebooks/scripts demonstrating:
 
 ## Troubleshooting
 
-* **mf6 not found** → Install MODFLOW 6 and ensure it’s on PATH.
 * **Geometry looks wrong** → Check CRS/units and the `extent`/`dz` used when evaluating the geology.
 * **Zero‑thickness layers** → Enable sublayering and/or allow pinch‑outs when building layers.
-* **Solver divergence** → Relax time stepping, adjust `ims` tolerances, or increase minimum cell thickness.
+
 
 Please open an issue with a minimal script and error text if you’re stuck.
 
