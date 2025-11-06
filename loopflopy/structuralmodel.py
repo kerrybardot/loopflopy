@@ -314,7 +314,7 @@ class StructuralModel:
             plt.savefig('../figures/structural_ytransects.png')
             plt.show()
 
-    def plot_transect(self, x0, x1, y0, y1, z0, z1, nh, nv, dz, faults = False, **kwargs):
+    def plot_transect(self, x0, x1, y0, y1, z0, z1, nh, nv, dz, figsize=(12, 3), faults = False, **kwargs):
         # dz = spacing of bedding layers. Array length of dz should match the number of features in self.sequence_names
         # nh, nv is the plotting resolution of lithology
 
@@ -337,7 +337,7 @@ class StructuralModel:
         ticks = [i for i in np.arange(0,len(labels))]
         boundaries = np.arange(-1,len(labels),1)+0.5
 
-        fig = plt.figure(figsize=(12, 3))
+        fig = plt.figure(figsize=figsize)
         ax = plt.subplot(111)
         ax.set_aspect('equal')
 

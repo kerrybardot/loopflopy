@@ -9,54 +9,131 @@ from shapely.geometry import LineString
 import geopandas as gpd
 from scipy.interpolate import griddata
 from matplotlib import gridspec
+import loopflopy.utils as utils
 
 logfunc = lambda e: np.log10(e)
 
-# angle 1 (DIP DIRECTION) rotates around z axis counterclockwise looking from +ve z.
-def find_angle1(nv): # nv = normal vector to surface
-    # The dot product of perpencicular vectors = 0
-    # A vector perpendicular to nv would be [a,b,c]
-    import numpy as np
-    import math
-    if nv[2] == 0:
-        angle1 = 0.
-    else:
-        a = nv[0]
-        b = nv[1]
-        c = -(a*nv[0]+b*nv[1])/nv[2]
-        v = [a,b,c]
-        if np.isnan(v[0]) == True or np.isnan(v[1]) == True: 
-            angle1 = 0.
-        if v[0] == 0.:
-            if v[1] > 0:
-                angle1 = 90
-            else:
-                angle1 = -90
-        else:             
-            tantheta = v[1]/v[0] 
-            angle1 = np.degrees(math.atan(tantheta))
-    return(angle1)
+def find_angle1_transect(nv, rotation_angle):
+    """
+    Calculate angle1 (dip direction) for transect models.
+    Angle 1 rotates around z axis counterclockwise looking from +ve z (like a bearing).
+    
+    For 2D transect models, the dip direction is simply the rotation angle
+    of the transect line.
+    
+    Parameters
+    ----------
+    nv : ndarray
+        Normal vector to the geological surface (not used in transect mode).
+    rotation_angle : float
+        Rotation angle of the transect line in degrees.
+    
+    Returns
+    -------
+    float
+        Dip direction angle in degrees.
+    """
+    return rotation_angle
 
-# angle 2 (DIP) rotates around y axis clockwise looking from +ve y.
-def find_angle2(nv): # nv = normal vector to surface
-    # The dot product of perpencicular vectors = 0
-    # A vector perpendicular to nv would be [a,b,c]
-    import numpy as np
-    import math
-    if nv[2] == 0:
-        angle2 = 0.
-    else:
-        a = nv[0]
-        b = nv[1]
-        c = -(a*nv[0]+b*nv[1])/nv[2]
-        v = [a,b,c]
-        if np.isnan(v[0]) == True or np.isnan(v[1]) == True or np.isnan(v[2]) == True:
-            angle2 = 0.
-        else:
-            v_mag = (v[0]**2 + v[1]**2 + v[2]**2)**0.5 
-            costheta = v[2]/v_mag
-            angle2 = 90-np.degrees(math.acos(costheta)) 
-    return(angle2)
+def find_angle2_transect(nv, rotation_angle):
+    """
+    Calculate angle2 (dip angle) for transect models.
+    Angle 2 rotates around y axis clockwise looking from +ve y (dip).
+
+    For 2D transect models, calculates the dip angle by finding the angle
+    between the surface normal vector and the transect plane.
+    
+    Parameters
+    ----------
+    nv : ndarray
+        Normal vector to the geological surface from Loop structural modeling.
+    rotation_angle : float
+        Rotation angle of the transect line in degrees.
+    
+    Returns
+    -------
+    float
+        Dip angle in degrees.
+    
+    Notes
+    -----
+    Uses cross product between surface normal and transect normal to
+    calculate the dip angle in the transect plane.
+    """
+
+    # normal vector (nv) to tangent plane (from Loop)
+    n = np.array([np.tan(math.radians(rotation_angle)), 1, 0])  # Normal vector to transect- check this!!
+    cp = np.cross(nv, n)  # Cross product to find the plane normal
+    angle2 = np.degrees(math.atan(cp[2]/cp[0]))
+    return angle2
+
+# angle 1 (DIP DIRECTION) rotates around z axis counterclockwise looking from +ve z.
+def find_angle1(nv):
+    """
+    Calculate angle1 (dip direction) from surface normal vector.
+    Angle 1 rotates around z axis counterclockwise looking from +ve z (like a bearing).
+    
+    Computes the dip direction angle, which is the azimuth of the steepest
+    descent direction on a geological surface.
+    
+    Parameters
+    ----------
+    nv : ndarray
+        Normal vector to the geological surface [a, b, c].
+    
+    Returns
+    -------
+    float
+        Dip direction angle in degrees (0-360), measured clockwise from north.
+    
+    Notes
+    -----
+    The dip direction is calculated by:
+    1. Finding the steepest descent gradient in the x-y plane
+    2. Computing the azimuth angle using atan2
+    
+    This angle represents the direction a ball would roll down the surface.
+    """
+    a, b, c = nv[0], nv[1], nv[2]
+
+    # Find steepest descent gradient (g) in the x-y plane (Angle 1)
+    g = np.array([-a/c, b/c])
+    angle1 = np.degrees(np.arctan2(g[1], g[0])) # angle in xy plane (anticlockwise)
+    return angle1
+
+def find_angle2(nv):
+    """
+    Calculate angle2 (dip angle) from surface normal vector.
+    Angle 2 rotates around y axis clockwise looking from +ve y (dip).
+    
+    Computes the dip angle, which is the angle between the geological
+    surface and the horizontal plane.
+    
+    Parameters
+    ----------
+    nv : ndarray
+        Normal vector to the geological surface [a, b, c].
+    
+    Returns
+    -------
+    float
+        Dip angle in degrees (0-90), where 0 is horizontal and 90 is vertical.
+    
+    Notes
+    -----
+    The dip angle is calculated using the relationship between the
+    horizontal and vertical components of the surface normal vector.
+    This represents how steeply the surface is inclined.
+    """
+    a, b, c = nv[0], nv[1], nv[2]
+
+    # Find steepest descent gradient (g) in the x-y plane (Angle 1)
+    g = np.array([-a/c, b/c])
+
+    # Find the Dip angle in the z direction (Angle 2)
+    magnitude = np.linalg.norm(g)
+    angle2 = np.degrees(np.arctan(np.sqrt(a**2 + b**2)/np.abs(c)))
+    return angle2
 
 def reshape_loop2mf(array, nlay, ncpl):
     array = array.reshape((nlay, ncpl))
@@ -65,9 +142,11 @@ def reshape_loop2mf(array, nlay, ncpl):
     
 class Geomodel:
     
-    def __init__(self, scenario, vertgrid, z0, z1, transect = False, nlg = None, **kwargs):     
+    def __init__(self, scenario, mesh, structuralmodel, vertgrid, z0, z1, transect = False, nlg = None, **kwargs):     
            
         self.scenario = scenario                      
+        self.mesh = mesh
+        self.structuralmodel = structuralmodel
         self.vertgrid = vertgrid     
         self.z0 = z0
         self.z1 = z1
@@ -168,7 +247,7 @@ class Geomodel:
             run_time = t1 - t0
             print('Time taken Block 1 (Evaluate model) = ', run_time.total_seconds())
 
-    def create_model_layers(self, mesh, structuralmodel, dem):
+    def create_model_layers(self, mesh, structuralmodel, surface):
 
         if self.vertgrid == 'con' or self.vertgrid == 'con2' : # CREATING DIS AND NPF ARRAYS    
 
@@ -223,7 +302,7 @@ class Geomodel:
 
             surfaces = make_surfaces(structuralmodel, mesh) # round surface is surface 0!
 
-            top_geo = dem.topo # Make top of geomodel equal to DEM topography
+            top_geo = surface # Make top of geomodel equal to DEM topography
 
             if self.nlg == len(structuralmodel.lithids)-1: # Situation when model bottom is z0
                 for i in range(1, self.nlg): # don't include groud level or bottom surface
@@ -260,12 +339,15 @@ class Geomodel:
                 if geolay == 0:
                     for icpl in range(mesh.ncpl):
                         thickness = top_geo - botm_geo[geolay]
-                        if thickness[icpl] <= 0: # if the bottom if above ground surface...
+                        print('thickness top layer.shape ', thickness.shape)
+                        if thickness[geolay, icpl] <= 0: # if the bottom if above ground surface...
                             nncell = find_nearest_bestest_neighbour(mesh, thickness, icpl, top_geo, botm_geo[geolay]) # find nearest neighbour..
                             botm_geo[geolay][icpl] = top_geo[icpl] - thickness[nncell] # make the negative thickness cell half the thickness as neighbouring cell                          
                             count += 1
                 else:
+                    print('geolay ', geolay)
                     thickness = botm_geo[geolay-1] - botm_geo[geolay]
+                    print('thickness bot layer.shape ', thickness.shape)
                     for icpl in range(mesh.ncpl):
                         if thickness[icpl] <= 0: # if the bottom if above ground surface...
                             nncell = find_nearest_bestest_neighbour(mesh, thickness, icpl, botm_geo[geolay-1], botm_geo[geolay]) # find nearest neighbour..
@@ -346,6 +428,7 @@ class Geomodel:
                     self.lith[lay,:] *= lay_geo
                     
             #self.botm_geo = botm_geo
+            self.top = self.top_geo
             self.botm = botm
             self.idomain = idomain
             self.nlay = self.nlg * self.nls
@@ -423,6 +506,7 @@ class Geomodel:
                     if botm[lay, icpl] == botm[lay-1, icpl]:
                         idomain[lay, icpl] = -1
     
+            self.top = self.top_geo
             self.botm_geo = botm_geo      
             self.botm = botm
             self.idomain = idomain
@@ -433,8 +517,8 @@ class Geomodel:
 
 
         ###############
-            
-        if self.vertgrid == 'con' or self.vertgrid == 'con2' :
+                #---------CON/CON2 Calculating cellids and gradients
+        if self.vertgrid == 'con' or self.vertgrid == 'con2':
 
             # Sort out cell ids
             # First create an array for cellids in layered version  (before we pop cells that are absent)
@@ -450,39 +534,29 @@ class Geomodel:
             self.ncell_disv = self.cellid_disv.size
             self.ncell_disu = np.count_nonzero(self.cellid_disu != -1)
 
-
-            print('\n   5. Calculating gradients...')
-            t0 = datetime.now()
-
-            if self.transect == False:
-                xyz = []                         
-                for lay in range(self.nlay-1, -1, -1):
-                    for icpl in range(mesh.ncpl):  
-                        x, y, z = mesh.xcyc[icpl][0], mesh.xcyc[icpl][1], self.botm[lay, icpl] 
-                        xyz.append([x,y,z])
-                vf = structuralmodel.model.evaluate_model_gradient(xyz) # generates an array indicating gradient for every cell
-                
-                ang1, ang2 = [], []
+            # Calculate gradients
+            xyz = []                         
+            for lay in range(self.nlay-1, -1, -1):
+                for icpl in range(mesh.ncpl):  
+                    x, y, z = mesh.xcyc[icpl][0], mesh.xcyc[icpl][1], self.botm[lay, icpl] 
+                    xyz.append([x,y,z])
+            vf = structuralmodel.model.evaluate_model_gradient(xyz) # generates an array indicating gradient for every cell
+            
+            ang1, ang2 = [], []
+            if self.transect:
+                for i in range(len(vf)):  
+                    ang1.append(find_angle1_transect(vf[i], mesh.angrot))
+                    ang2.append(find_angle2_transect(vf[i], mesh.angrot))
+            else:
                 for i in range(len(vf)):  
                     ang1.append(find_angle1(vf[i]))
                     ang2.append(find_angle2(vf[i]))
 
-            else:
-                vf = np.gradient(self.botm, mesh.delx) 
-                #print('vf1 shape ', vf[1].shape)
-                #print('vf 1 ', vf[1])
-                vf = vf[1].flatten()
-                print('vf shape ', vf.shape)
-                ang2 = []
-                for i in range(len(vf)):  # angle 2 (DIP) rotates around y axis clockwise looking from +ve y.
-                    angle2 = np.degrees(math.atan(vf[i]))
-                    ang2.append(angle2)
-                
-                ang1 = np.zeros_like(ang2, dtype = float)  # Angle 1 always at 0 in transect
-
             self.ang1  = reshape_loop2mf(np.asarray(ang1), self.botm.shape[0], self.botm.shape[1])
             self.ang2  = reshape_loop2mf(np.asarray(ang2), self.botm.shape[0], self.botm.shape[1])
-            
+
+
+
         self.nnodes_div = len(self.botm.flatten())   
         self.thick = np.zeros((self.nlay, mesh.ncpl))
         self.thick[0,:] = self.top_geo - self.botm[0]
@@ -491,7 +565,7 @@ class Geomodel:
         self.zc = self.botm + self.thick/2
 
         self.vgrid = flopy.discretization.VertexGrid(vertices=mesh.vertices, cell2d=mesh.cell2d, ncpl = mesh.ncpl, 
-                                                     top = self.top_geo, botm = self.botm)
+                                                     top = self.top_geo[0], botm = self.botm)
     
         # Save xyz coordinates for each cell in the model       
         xyz = []  
@@ -506,6 +580,8 @@ class Geomodel:
         t1 = datetime.now()
         run_time = t1 - t0
         print('Time taken Block 5 gradients= ', run_time.total_seconds())
+
+
 
 ################## PROP ARRAYS TO BE SAVED IN DISU FORMAT ##################        
     def fill_cell_properties(self, mesh): # Uses lithology codes to populate arrays 
@@ -678,38 +754,42 @@ class Geomodel:
         gdf = gpd.GeoDataFrame(geometry=contour_lines, crs = spatial.epsg)
         gdf.to_file('../data/data_shp/geomodel_surface_contours.shp', driver='ESRI Shapefile')
 
-    def geomodel_transect_lith(self, structuralmodel, spatial, aspect=5, **kwargs):
-        x0 = kwargs.get('x0', spatial.x0)
-        y0 = kwargs.get('y0', spatial.y0)
+    def geomodel_transect_lith(self, plot_node = None, **kwargs):
+ 
+        x0 = kwargs.get('x0', self.mesh.vgrid.xcellcenters[0])
+        y0 = kwargs.get('y0', self.mesh.vgrid.ycellcenters[-1])
+        x1 = kwargs.get('x1', self.mesh.vgrid.xcellcenters[0])
+        y1 = kwargs.get('y1', self.mesh.vgrid.ycellcenters[-1])
         z0 = kwargs.get('z0', self.z0)
-        x1 = kwargs.get('x1', spatial.x1)
-        y1 = kwargs.get('y1', spatial.y1)
         z1 = kwargs.get('z1', self.z1)
     
         fig = plt.figure(figsize = (12,4))
         ax = plt.subplot(111)
-        ax.set_aspect(aspect=aspect)
+        #ax.set_aspect('equal')
         xsect = flopy.plot.PlotCrossSection(modelgrid=self.vgrid , line={"line": [(x0, y0),(x1, y1)]}, geographic_coords=True)
-        csa = xsect.plot_array(a = self.lith_disv, cmap = structuralmodel.cmap, norm = structuralmodel.norm, alpha=0.8)
+        csa = xsect.plot_array(a = self.lith, cmap = self.structuralmodel.cmap, norm = self.structuralmodel.norm, alpha=0.8)
         ax.set_xlabel('x (m)', size = 10)
         ax.set_ylabel('z (m)', size = 10)
         ax.set_ylim([z0, z1])
   
         linecollection = xsect.plot_grid(lw = 0.1, color = 'black') 
+
+        if plot_node != None:
+            x, y, z = utils.disucell_to_xyz(self, plot_node)
+            ax.plot(x, z)
         
-        labels = structuralmodel.strat_names[1:]
+        labels = self.structuralmodel.strat_names[1:]
         ticks = [i for i in np.arange(0,len(labels))]
         boundaries = np.arange(-1,len(labels),1)+0.5
 
         cbar = plt.colorbar(csa,
                             boundaries = boundaries,
-                            shrink = 0.4
+                            shrink = 1.0
                             )
         cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 8, verticalalignment = 'center')    
-        plt.title(f"x0, x1, y0, y1 = {x0:.0f}, {x1:.0f}, {y0:.0f}, {y1:.0f}", size=8)
+        plt.title(f"x0, y0 = {x0:.0f}, {x1:.0f}: x1, y1 = {y0:.0f}, {y1:.0f}", size=8)
         plt.tight_layout()  
-        plt.savefig('../figures/geomodel_transect.png')
-        plt.show()   
+        plt.show()    
 
     def get_surface_lith(self):
         lith = self.lith_disv
@@ -816,16 +896,54 @@ class Geomodel:
 
         #plt.savefig('../figures/surface.png')
 
-    def geomodel_transect_array(self, spatial, array, title, grid = True,
+    def geomodel_transect_array(self, array, title, grid = True, figsize = (12,4),
                                 vmin = None, vmax = None, **kwargs):
-        x0 = kwargs.get('x0', spatial.x0)
-        y0 = kwargs.get('y0', spatial.y0)
+        """
+        Plot a cross-sectional view of any 3D array through the geological model.
+        
+        Creates a 2D cross-section plot displaying values from a 3D array
+        (such as hydraulic head, hydraulic conductivity, etc.) along a specified
+        transect line through the model.
+        
+        Parameters
+        ----------
+        spatial : Spatial
+            Spatial data object containing model boundaries.
+        array : ndarray
+            3D array to plot with shape (nlay, ncpl) matching the model grid.
+        title : str
+            Title for the plot and filename when saving.
+        grid : bool, optional
+            Whether to overlay model grid lines (default: True).
+        vmin, vmax : float, optional
+            Minimum and maximum values for color scale (default: None, auto-scale).
+        **kwargs
+            x0, y0 : float
+                Starting coordinates of transect line (default: spatial bounds).
+            x1, y1 : float
+                Ending coordinates of transect line (default: spatial bounds).
+            z0, z1 : float
+                Vertical extent for plotting (default: model domain).
+        
+        Notes
+        -----
+        This is a general-purpose transect plotting method that can display:
+        - Hydraulic head distributions
+        - Hydraulic conductivity fields
+        - Flow velocities
+        - Any other 3D model property
+        
+        The plot is automatically saved to '../figures/geomodel_transect_{title}.png'
+        """
+
+        x0 = kwargs.get('x0', min(self.mesh.xc))
+        y0 = kwargs.get('y0', min(self.mesh.yc))
         z0 = kwargs.get('z0', self.z0)
-        x1 = kwargs.get('x1', spatial.x1)
-        y1 = kwargs.get('y1', spatial.y1)
+        x1 = kwargs.get('x1', max(self.mesh.xc))
+        y1 = kwargs.get('y1', max(self.mesh.yc))
         z1 = kwargs.get('z1', self.z1)
     
-        fig = plt.figure(figsize = (12,4))
+        fig = plt.figure(figsize = figsize)
         ax = plt.subplot(111)
         xsect = flopy.plot.PlotCrossSection(modelgrid=self.vgrid , line={"line": [(x0, y0),(x1, y1)]}, geographic_coords=True)
         csa = xsect.plot_array(a = array, alpha=0.8, vmin = vmin, vmax = vmax)
