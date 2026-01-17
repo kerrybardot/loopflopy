@@ -5,95 +5,118 @@ import numpy as np
 from matplotlib import gridspec
 import sys
 import loopflopy.utils as utils
+import pandas as pd
 
 sys.path.append(r'C:\Users\00105295\Projects\Lab_tools\Geostats_tools')
 from Krigger import optimized_kriging
+
+
 
 class Properties:    
     def __init__(self, **kwargs):      
         
         self.data_label = "DataBaseClass"
    
-    def make_stochastic_gdf(self, geomodel, mesh, spatial, scalarfield, df, unit):
+    def make_randomfield_3d(self, geomodel, mesh, spatial, scalarfield, df, units):
 
-        gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df.Easting, df.Northing), crs=spatial.epsg)
-        gdf['prop_mean']  = 0.
-        gdf['prop_var']   = 1.
-        gdf['icpl']      = gdf['geometry'].apply(lambda point: mesh.gi.intersect(point)["cellids"][0])
-        gdf['cell_xy']   = gdf['icpl'].apply(lambda icpl: (mesh.xcyc[icpl][0], mesh.xcyc[icpl][1]))
-        gdf['unit']      = unit
-        gdf['geolay']    = gdf['unit'].apply(lambda unit: np.where(geomodel.units == unit)[0][0]) # Find the index of the strat name in the list
-        gdf['lay']       = gdf['geolay'].apply(lambda geolay: geomodel.nls * geolay + 1) # Bottom layer for 2 sublayers, middle layer for 3 sublayers  ##########################                                                          
-        gdf['cell_disv'] = gdf.apply(lambda row: row['icpl'] + row['lay'] * mesh.ncpl, axis=1)  
-        gdf['cell_disu'] = gdf.apply(lambda row: utils.disvcell_to_disucell(geomodel, row['cell_disv']), axis=1)  
-        gdf['cell_z']  = gdf.apply(lambda row: geomodel.zc[row['lay'], row['icpl']], axis=1)
-        gdf['sf_z']    = gdf.apply(lambda row: scalarfield[row['lay'], row['icpl']], axis=1)
-        gdf = gdf[gdf['cell_disu'] != -1] # delete pilot points where layer is pinched out
+        def make_gdf(geomodel, mesh, spatial, scalarfield, df, unit):
+            geolay = np.where(geomodel.units == unit)[0][0]
 
-        return gdf
-    
+            gdf = gpd.GeoDataFrame(df.copy(), geometry=gpd.points_from_xy(df.Easting, df.Northing), crs=spatial.epsg)
+            gdf['unit']      = unit
+            gdf['prop_mean']  = 0.
+            gdf['prop_var']   = 1.
+            gdf['icpl']      = gdf['geometry'].apply(lambda point: mesh.gi.intersect(point)["cellids"][0])
+            gdf['cell_xy']   = gdf['icpl'].apply(lambda icpl: (mesh.xcyc[icpl][0], mesh.xcyc[icpl][1]))
+            gdf['unit']      = unit
+            gdf['geolay']    = geolay
+            gdf['lay']       = gdf['geolay'].apply(lambda geolay: geomodel.nls * geolay + 1)
+            gdf['cell_disv'] = gdf.apply(lambda row: row['icpl'] + row['lay'] * mesh.ncpl, axis=1)  
+            gdf['cell_disu'] = gdf.apply(lambda row: utils.disvcell_to_disucell(geomodel, row['cell_disv']), axis=1)  
+            gdf['cell_z']  = gdf.apply(lambda row: geomodel.zc[row['lay'], row['icpl']], axis=1)
+            gdf['sf_z']    = gdf.apply(lambda row: scalarfield[geolay][row['lay'], row['icpl']], axis=1)
+            gdf = gdf[gdf['cell_disu'] != -1]
+            
+            return gdf
+
+        gdf_list = []
+        
+        for unit in units:
+            print(f"Processing unit: {unit}")
+            gdf_unit = make_gdf(geomodel, mesh, spatial, scalarfield, df, unit)
+            gdf_list.append(gdf_unit)
+        
+        # Combine all GeoDataFrames
+        combined_gdf = pd.concat(gdf_list, ignore_index=True)
+        combined_gdf = gpd.GeoDataFrame(combined_gdf, crs=gdf_list[0].crs)
+        
+        return combined_gdf
+
     def stochasticfieldgeneration(self, 
-                unit,
                 gdf,
                 geomodel, 
                 mesh, 
                 property = 'prop',
                 anisotropy = (1., 1., 1.), 
                 return_random=True, # True makes it random with 0 mean and 1 variance, False makes it deterministic
-                CL = 1000., 
+                CL = 1000.,  # Correlation length
                 nugget = 0.05, 
-                rebuild_threshold = 0.1,):
+                rebuild_threshold = 0.1,
+                scalarfield = None):
 
         ## MAKE AN ARRAY OF X,Y,Z,VAL
         prop_layicpl = 999999 * np.ones((geomodel.nlay, geomodel.ncpl))
 
         for geolay, unit in enumerate(geomodel.units): # for each unit...
             print('###### ', unit, '#########\n')
-            
+            gdf_unit = gdf[gdf.unit == unit]
             pv = []
 
             for sublay in range(geomodel.nls): # for each sublayer in unit..
+                print("Sublay = ", sublay)
                 for icpl in range(geomodel.ncpl): # for each cell in plan...
                 
                     lay = geolay * geomodel.nls + sublay # Zero based
                     disvcell = icpl + lay*geomodel.ncpl
                     x = mesh.xcyc[icpl][0]
                     y = mesh.xcyc[icpl][1]
-                    z = geomodel.zc[lay, icpl]
+                    z = geomodel.zc[lay, icpl] # scalarfield[geolay][lay, icpl] #
 
-                    if disvcell in gdf.cell_disv.values and geomodel.idomain[lay, icpl] == 1: # only include cells not pinched out
-                        id = gdf.loc[gdf['cell_disv'] == disvcell, 'ID'].values[0]
-                        print(id, disvcell)
-                        val = 0.
+                    if geomodel.idomain[lay, icpl] == 1: # only include cells not pinched out #disvcell in gdf_unit.cell_disv.values and 
+                        #id = gdf_unit.loc[gdf_unit['cell_disv'] == disvcell, 'ID'].values[0]
+                        #z  = gdf_unit.loc[gdf_unit['cell_disv'] == disvcell, 'sf_z'].values[0]
+                        val = np.nan
                         #val = np.log10(gdf.loc[gdf['cell_disv'] == disvcell, property].values)[0]
-                        print(id, unit, 'disv_cell', disvcell, 'val', val)
+                        #print(id, unit, 'disv_cell', disvcell, 'val', val)
             
                     else:
                         val = np.nan        
-                            
+                         
                     pv.append([x, y, z, val])
             
             points_values_3d = np.array(pv)
             print('points_values_3d.shape ', points_values_3d.shape)
-            print('sill ', self.sills[geolay])
+            #print('sill ', self.sills[geolay])
             
-            n_neighbors = len(gdf.ID.values) # number of neighbours to use in kriging
-            print(n_neighbors)
-            random_values = optimized_kriging(points_values_3d, #x y z val USE LOG K
-                            n_neighbors = n_neighbors, # determines how many neighbours
+            n_neighbors = len(gdf_unit.ID.values) # number of neighbours to use in kriging
+            print('n_neighbours ', n_neighbors)
+            random_values = optimized_kriging(
+                            points_values_3d, #x y z val USE LOG K
+                            n_neighbors = 10, # determines how many neighbours
                             variogram_model="spherical", 
                             CL = CL,  # Correlation length
-                            sill = self.sills[geolay],  # maximum variance - replace with spreadsheet
-                            nugget = nugget, # value at 0 distance
                             return_random = True, #False is kriging (deterministic), True is stochastoc
                             random_seed = None, 
-                            initial_points=20, # number of points to sample for initial variogram (assuming all points are nan)
+                            n_initial_points=10, # number of points to sample for initial variogram (assuming all points are nan)
                             unknown_value_flag=np.nan, 
                             anisotropy=anisotropy,
                             rebuild_threshold=rebuild_threshold) # how often to recreate KDTree e.g. every 0.1% of points rebuild KDTree'''
 
             points_values_3d[:,-1][np.isnan(points_values_3d[:,-1])] = random_values
             prop_values = points_values_3d[:,-1]
+
+            # Normalise to -1 to 1
+            prop_values = 2 * (prop_values - prop_values.min()) / (prop_values.max() - prop_values.min()) - 1
             print('prop_values ', prop_values.shape)
 
             prop_values = prop_values.reshape(geomodel.nls, geomodel.ncpl) # reshape into layers
@@ -104,8 +127,8 @@ class Properties:
                 prop_layicpl[lay,:] = prop_values[sublay, :] # assign to the correct layer in the disv grid
         
         prop_layicpl_ma = np.ma.masked_where(geomodel.idomain != 1, prop_layicpl)
-        prop_disv = prop_layicpl_ma.flatten()
-        prop_disu = prop_layicpl_ma.compressed()
+        prop_disv = prop_layicpl_ma.flatten() # includes mask
+        prop_disu = prop_layicpl_ma.compressed() # doesnt include mask
 
         setattr(self, f'log{property}_layicpl_ma', prop_layicpl_ma)
         setattr(self, f'log{property}_disv', prop_disv)
@@ -113,6 +136,7 @@ class Properties:
         setattr(self, f'{property}_layicpl_ma', 10**prop_layicpl_ma)
         setattr(self, f'{property}_disv', 10**prop_disv)
         setattr(self, f'{property}_disu', 10**prop_disu)
+        return prop_layicpl_ma, prop_disv
     
     '''
     
@@ -160,7 +184,10 @@ class Properties:
             points_values_3d = np.array(pv)
             print('points_values_3d.shape ', points_values_3d.shape)
             print('sill ', self.sills[geolay])
-            
+
+
+
+
             ## RUN KRIGING
             n_neighbors = len(gdf.ID.values) # number of neighbours to use in kriging
             print(n_neighbors)

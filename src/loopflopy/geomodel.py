@@ -446,7 +446,7 @@ class Geomodel:
         model_layers : list
             Mapping of model layers to geological layers.
         """
-
+        self.surface = surface
         self.max_thick = max_thick
         self.nls = nls
 
@@ -580,8 +580,6 @@ class Geomodel:
 
             self.nlay   = self.nlg * self.nls # number of model layers = geo layers * sublayers 
             self.lith = np.zeros((self.nlay, self.mesh.ncpl), dtype=float) # lithology for each model layer
-            self.botm = np.zeros((self.nlay, self.mesh.ncpl), dtype=float) # bottom elevation for each model layer
-            self.idomain = np.zeros((self.nlay, self.mesh.ncpl), dtype=int) # idomain for each model layer
 
             botm        = np.zeros((self.nlay, self.mesh.ncpl), dtype=float) # bottom elevation of each model layer
             idomain     = np.ones((self.nlay, self.mesh.ncpl), dtype=int)    # idomain for each model layer
@@ -595,7 +593,7 @@ class Geomodel:
                             idomain[lay, icpl] = -1          # model cell idomain = -1
                         if self.thick_geo[lay_geo, icpl] <= 0: # if geo layer thickness = 0 (pinched out)
                             idomain[lay, icpl] = -1          # model cell idomain = -1
-                        if lay_geo >=1: # bottom geological layers not modelled
+                        if lay_geo >= self.nlg: # bottom geological layers not modelled
                             idomain[lay, icpl] = -1          # model cell idomain = -1
 
             # Creates bottom of model layers
@@ -767,7 +765,7 @@ class Geomodel:
         #                                             top = self.top, botm = self.botm)
 
         self.vgrid = flopy.discretization.VertexGrid(vertices=self.mesh.vertices, cell2d=self.mesh.cell2d, ncpl = self.mesh.ncpl, 
-                                                top = self.top_geo[0], botm = self.botm)
+                                                top = self.top, botm = self.botm)
 
         # Save xyz coordinates for each cell in the model       
         xyz = []  
@@ -987,7 +985,7 @@ class Geomodel:
         gdf = gpd.GeoDataFrame(geometry=contour_lines, crs = spatial.epsg)
         gdf.to_file('../data/data_shp/geomodel_surface_contours.shp', driver='ESRI Shapefile')
 
-    def geomodel_transect_lith(self, figsize = (12,3), plot_node = None, **kwargs):
+    def geomodel_transect_lith(self, figsize = (8,3), plot_node = None, **kwargs):
         """
         Plot a cross-sectional view of the geological model showing lithology.
         
@@ -1061,7 +1059,7 @@ class Geomodel:
 
 
     def geomodel_transect_array(self, array, title, grid = True,
-                                vmin = None, vmax = None, **kwargs):
+                                vmin = None, vmax = None, figsize = (8,3),**kwargs):
         """
         Plot a cross-sectional view of any 3D array through the geological model.
         
@@ -1107,7 +1105,7 @@ class Geomodel:
         y1 = kwargs.get('y1', max(self.mesh.yc))
         z1 = kwargs.get('z1', self.z1)
     
-        fig = plt.figure(figsize = (12,4))
+        fig = plt.figure(figsize = figsize)
         ax = plt.subplot(111)
         xsect = flopy.plot.PlotCrossSection(modelgrid=self.vgrid , line={"line": [(x0, y0),(x1, y1)]}, geographic_coords=True)
         csa = xsect.plot_array(a = array, alpha=0.8, vmin = vmin, vmax = vmax)

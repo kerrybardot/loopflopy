@@ -18,7 +18,7 @@ class StructuralModel:
         self.x0, self.y0, self.z0 = bbox[0][0], bbox[0][1], bbox[0][2]
         self.x1, self.y1, self.z1 = bbox[1][0], bbox[1][1], bbox[1][2]
         
-    def plot_xytransect(self, title, start, end, z0, z1, nh, nz, **kwargs):
+    def plot_xytransect(self, title, start, end, z0, z1, nh, nz, figsize=(10, 4),**kwargs):
     
         x0 = start[0]
         y0 = start[1]
@@ -39,7 +39,7 @@ class StructuralModel:
 
         extent0 = 0
         extent1 = np.sqrt((x1-x0)**2 + (y1-y0)**2)
-        fig, ax = plt.subplots(figsize=(10,4))
+        fig, ax = plt.subplots(figsize=figsize)
 
         csa = plt.imshow(np.ma.masked_where(V<0,V), origin = "lower", 
                          extent = [extent0, extent1,z0,z1], #[x0,x1,z0,z1], 
@@ -52,7 +52,7 @@ class StructuralModel:
 
         cbar = plt.colorbar(csa,
                             boundaries = boundaries,
-                            shrink = 0.2
+                            shrink = 0.5
                             )
         cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 8, verticalalignment = 'center')    
         #plt.xticks(ticks = [], labels = [])
@@ -60,7 +60,7 @@ class StructuralModel:
         plt.ylabel('Elev. (mAHD)')
         plt.title(title, size = 8)
         
-        plt.show()
+        #plt.show()
         plt.savefig('../figures/structural_xytransect.png')
         
     
@@ -432,9 +432,10 @@ class StructuralModel:
         plt.colorbar(c, ax = ax, shrink = 0.5)
 
 
-    def make_surfaces(self):
+    def make_surfaces(self, mesh):
 
         surfaces = []
+        surfaces_xyz = []
         for i in range(len(self.vals)-1): # Don't create surface for the bottom lithology   
             feature =self.sequences[i]
             vals = [self.vals[i]]
@@ -451,8 +452,10 @@ class StructuralModel:
             filtered_z = z[valid_mask]
             
             #print('len filtered z ', len(filtered_z), ' i.e. without NaN or inf')
-            surface = griddata(filtered_points, filtered_z, (self.mesh.xc, self.mesh.yc), method='nearest') #'linear'
+            surface = griddata(filtered_points, filtered_z, (mesh.xc, mesh.yc), method='linear') #'linear'
             #print(np.unique(surface, return_counts=True))
 
             surfaces.append(surface)
+            surfaces_xyz.append((x,y,z))
         self.surfaces = surfaces
+        self.surfaces_xyz = surfaces_xyz

@@ -433,6 +433,43 @@ def createcell2d(P, grid, fault = False):
     
         return(cell2d, xcyc, vertices, gridobject, nodes)
 
+def plot_array_on_mesh(mesh, array, 
+                       shapely_boundary = None,
+                       vmin = None, 
+                       vmax = None, 
+                       levels = None, 
+                       title = None, 
+                       xlim = None, ylim = None,
+                       xy = None,):
+
+    if shapely_boundary:
+        # Check which cells are inside the model boundary
+        inside_boundary = []
+        for icpl in range(mesh.ncpl):
+            point = Point(mesh.xcyc[icpl])
+            inside_boundary.append(shapely_boundary.contains(point))
+
+        inside_boundary = np.array(inside_boundary)
+
+        # Mask the array
+        array = np.ma.masked_where(~inside_boundary, array)
+
+    fig = plt.figure(figsize=(7,7))
+    ax = fig.add_subplot()
+    
+    pmv = flopy.plot.PlotMapView(modelgrid=mesh.vgrid)
+    t = pmv.plot_array(array, vmin = vmin, vmax = vmax)
+    cbar = plt.colorbar(t, shrink = 0.5)  
+
+    if levels is not None:
+        cg = pmv.contour_array(array.filled(np.nan), levels=levels, linewidths=0.8, colors="black")
+    
+    if xy:  # Plot points
+        ax.plot(xy[0], xy[1], 'o', ms = 2, color = 'black')
+
+    if xlim: ax.set_xlim(xlim) 
+    if ylim: ax.set_ylim(ylim) 
+    if title: ax.set_title(title)
 
     
 

@@ -1147,7 +1147,8 @@ class Mesh:
 
         plt.savefig(fname)
 
-    def plot_surface_array(self, array, structuralmodel, plot_data = False, 
+    def plot_surface_array(self, array, structuralmodel, 
+                           plot_data = False, 
                            vmin = None, vmax = None, 
                            plot_grid = False, 
                            levels = None, title = None):
@@ -1277,6 +1278,6 @@ class Mesh:
         cbar = plt.colorbar(t, shrink = 0.5)  
         #cg = pmv.contour_array(array, levels=levels, linewidths=0.8, colors="0.75")
         if xy:# Plot points
-            ax.plot(xy[0], xy[1], 'o', ms = 2, color = 'red')
+            ax.plot(xy[0], xy[1], 'o', ms = 2, color = 'black')
         if xlim: ax.set_xlim(xlim) 
         if ylim: ax.set_ylim(ylim) 
