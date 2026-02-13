@@ -11,7 +11,6 @@ class Data:
             self.data_label = "DataBaseClass"
 
     def process_rch(self, geomodel, mesh):
-
         
         rch = 0.0001/365
         

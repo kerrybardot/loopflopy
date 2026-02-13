@@ -753,7 +753,7 @@ class Flowmodel:
 
     def plot_transect(self, mesh, spatial, geomodel, array, title = None, grid = True,
                       vmin = None, vmax = None, lithology = False, contours = False, levels = None, xlim = None, ylim = None,
-                      vectors = None, kstep = None, hstep = None, normalize = True, figsize = (12,4), label = None,
+                      vectors = None, kstep = None, hstep = None, normalize = True, figsize = (12,4), label = None, cmap = 'Spectral',
                       **kwargs):
         """
         Create a cross-sectional plot of model results along a transect line.
@@ -847,7 +847,7 @@ class Flowmodel:
         xsect = flopy.plot.PlotCrossSection(model=self.gwf, line={"line": [(x0, y0),(x1, y1)]}, 
                                             #extent = [x0, x1, z0, z1], 
                                             geographic_coords=True)
-        csa = xsect.plot_array(a = getattr(self, array), cmap = 'Spectral', alpha=0.8, vmin = vmin, vmax = vmax)
+        csa = xsect.plot_array(a = getattr(self, array), cmap = cmap, alpha=0.8, vmin = vmin, vmax = vmax)
 
         if contours:
             cp = xsect.contour_array(a=getattr(self, array), levels=levels, linewidths=0.5, colors='black')
@@ -886,4 +886,58 @@ class Flowmodel:
         plt.savefig('../figures/transect_%s.png' % array)
         plt.show()    
     
+    def prepare_particles(self, gwf, particle_data):
+        mp = flopy.modpath.Modpath7(
+                                    modelname="modpath_model",
+                                    flowmodel=gwf,
+                                    exe_name="../exe/mpath7.exe",
+                                    model_ws=self.project.workspace,
+                                )
+        self.mp = mp
 
+        # Basic MODPATH settings
+        mpbas = flopy.modpath.Modpath7Bas(self.mp, porosity=0.3)
+
+
+        # Wrap them in ONE ParticleData object
+        pdata = flopy.modpath.ParticleData(
+            particle_data,
+            structured=False
+        )
+
+        # Now create the ParticleGroup
+        pg = flopy.modpath.ParticleGroup(
+            particlegroupname="PG_layers",
+            particledata=pdata,
+            filename="../modelfiles/pg_layers.sloc"
+        )
+        print(particle_data)
+        self.pg = pg
+
+    def run_modpath(self):
+
+        # MODPATH simulation
+        mpsim = flopy.modpath.Modpath7Sim(
+            self.mp,
+            simulationtype="pathline",
+            trackingdirection="forward",
+            weaksinkoption="pass_through",
+            weaksourceoption="pass_through",
+            budgetoutputoption="summary",
+            particlegroups=[self.pg]
+        )
+        self.mp.write_input() 
+        self.mp.run_model()
+
+    def plot_particles(self):
+        p = flopy.utils.PathlineFile(f"{self.project.workspace}/mp.mppth")
+        plines = p.get_alldata()
+
+        plt.figure(figsize=(8,3))
+        for pl in plines:
+            plt.plot(pl.x, pl.y, "-o")
+        plt.title("MODPATH Pathline (DISV Transect)")
+        plt.xlabel("x (m)")
+        plt.ylabel("y (m)")
+        plt.grid(True)
+        plt.show()

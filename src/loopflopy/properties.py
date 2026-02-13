@@ -9,14 +9,88 @@ import loopflopy.utils as utils
 sys.path.append(r'C:\Users\00105295\Projects\Lab_tools\Geostats_tools')
 from Krigger import optimized_kriging
 
-class Properties:    
+class Properties:
+    """
+    A properties class for managing spatially variable hydraulic properties.
+    
+    This class handles the creation and manipulation of heterogeneous hydraulic
+    property fields using kriging and stochastic field generation. It manages
+    spatial interpolation of hydraulic conductivity, storage properties, and
+    other parameters from pilot point data.
+    
+    Attributes
+    ----------
+    data_label : str
+        Label for the data source (default: "DataBaseClass").
+    gdf : geopandas.GeoDataFrame
+        GeoDataFrame containing property values at pilot point locations
+        with spatial indexing and grid cell mappings.
+    sills : list
+        Variogram sill values for each geological unit.
+    
+    Notes
+    -----
+    The class supports:
+    - Kriging interpolation for deterministic property fields
+    - Stochastic field generation for uncertainty quantification
+    - Conversion between DISV (layered) and DISU (unstructured) grid formats
+    - 3D anisotropic spatial correlation structures
+    
+    The workflow typically involves:
+    1. Initialize Properties object
+    2. Call make_gdf() to process pilot point data
+    3. Use kriging() or stochasticfieldgeneration() to create property fields
+    4. Use plot methods to visualize results
+    
+    Examples
+    --------
+    >>> props = Properties()
+    >>> props.make_gdf(geomodel, mesh, spatial, df)
+    >>> props.kriging(geomodel, mesh, property='kh', CL=1000)
+    >>> props.plot_propfield(mesh, spatial, lay=0, unit='aquifer')
+    """
     def __init__(self, **kwargs):      
         
         self.data_label = "DataBaseClass"
 
 
     def make_gdf(self, geomodel, mesh, spatial, df):
-
+        """
+        Create GeoDataFrame from pilot point data with grid cell mappings.
+        
+        Processes pilot point data into a GeoDataFrame with spatial indexing,
+        logarithmic property transforms, and mappings to model grid cells in
+        both DISV and DISU formats.
+        
+        Parameters
+        ----------
+        geomodel : Geomodel
+            Geological model containing layer structure and geometry.
+        mesh : Mesh
+            Computational mesh with cell connectivity.
+        spatial : Spatial
+            Spatial data object with coordinate reference system.
+        df : pandas.DataFrame
+            Pilot point data with columns: Easting, Northing, Unit, kh, kv, ss, sy.
+        
+        Sets Attributes
+        ---------------
+        gdf : geopandas.GeoDataFrame
+            GeoDataFrame with pilot point properties and spatial mappings.
+        sills : list
+            Variogram sill values calculated for each geological unit.
+        
+        Notes
+        -----
+        The GeoDataFrame includes:
+        - Logarithmic property transforms (log_kh, log_kv, log_ss)
+        - Grid cell intersections (icpl)
+        - Geological layer mappings (geolay)
+        - DISV and DISU cell IDs (cell_disv, cell_disu)
+        - Cell center coordinates (cell_xy, cell_z)
+        
+        Pilot points in pinched-out layers (cell_disu == -1) are removed.
+        """
         gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df.Easting, df.Northing), crs=spatial.epsg)
         
         gdf['log_kh']  = gdf['kh'].apply(lambda kh: np.log10(kh))  
@@ -133,6 +207,54 @@ class Properties:
                 CL = 1000., 
                 nugget = 0.05, 
                 rebuild_threshold = 0.1):
+        """
+        Create spatially variable property field using kriging interpolation.
+        
+        Performs ordinary kriging to create deterministic hydraulic property
+        fields from pilot point data. Interpolates values to all model cells
+        using a spherical variogram model with user-specified parameters.
+        
+        Parameters
+        ----------
+        geomodel : Geomodel
+            Geological model with layer structure.
+        mesh : Mesh
+            Computational mesh.
+        property : str, optional
+            Property to interpolate: 'kh', 'kv', or 'ss' (default: 'kh').
+        anisotropy : tuple of float, optional
+            Anisotropy ratios (ax, ay, az) for correlation length (default: (1., 1., 1.)).
+        return_random : bool, optional
+            If False, performs deterministic kriging. If True, generates random
+            field (default: False).
+        CL : float, optional
+            Correlation length for variogram (m) (default: 1000).
+        nugget : float, optional
+            Nugget effect (variance at zero distance) (default: 0.05).
+        rebuild_threshold : float, optional
+            KDTree rebuild frequency (default: 0.1).
+        
+        Sets Attributes
+        ---------------
+        log{property}_layicpl_ma : ndarray
+            Log-transformed property values in (nlay, ncpl) format with masked inactive cells.
+        log{property}_disv : ndarray
+            Log-transformed property in DISV format (flattened).
+        log{property}_disu : ndarray
+            Log-transformed property in DISU format (active cells only).
+        {property}_layicpl_ma : ndarray
+            Property values (not log) in (nlay, ncpl) format.
+        {property}_disv : ndarray
+            Property values in DISV format.
+        {property}_disu : ndarray
+            Property values in DISU format.
+        
+        Notes
+        -----
+        Kriging is performed separately for each geological unit using pilot
+        points within that unit. The method uses spherical variogram with
+        unit-specific sills calculated in make_gdf().
+        """
 
         ## MAKE AN ARRAY OF X,Y,Z,VAL
         prop_layicpl = 999999 * np.ones((geomodel.nlay, geomodel.ncpl))

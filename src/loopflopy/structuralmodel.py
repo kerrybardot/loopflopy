@@ -7,6 +7,69 @@ import math
 from scipy.interpolate import griddata
 
 class StructuralModel:
+    """
+    A structural geological model class for creating 3D geological frameworks.
+    
+    This class wraps LoopStructural modeling functionality to create, visualize,
+    and export 3D geological models. It manages geological data, stratigraphic
+    sequences, structural features (folds, faults), and provides visualization
+    methods for quality control.
+    
+    Parameters
+    ----------
+    bbox : list of lists
+        Model bounding box as [[x0, y0, z0], [x1, y1, z1]] defining the
+        spatial extent of the model domain.
+    geodata_fname : str
+        Path to Excel file containing geological data.
+    data_sheetname : str
+        Name of Excel sheet containing structural orientation and contact data.
+    strat_sheetname : str
+        Name of Excel sheet containing stratigraphic column information.
+    
+    Attributes
+    ----------
+    bbox : list
+        Model bounding box.
+    origin : ndarray
+        Model origin coordinates [x0, y0, z0].
+    maximum : ndarray
+        Model maximum coordinates [x1, y1, z1].
+    x0, y0, z0 : float
+        Minimum coordinates in each direction.
+    x1, y1, z1 : float
+        Maximum coordinates in each direction.
+    model : LoopStructural.GeologicalModel
+        The LoopStructural geological model object (set after creating model).
+    strat_names : list
+        List of stratigraphic unit names.
+    data : pandas.DataFrame
+        Geological observation data (contacts, orientations).
+    strat : pandas.DataFrame
+        Stratigraphic column data.
+    cmap : matplotlib.colors.Colormap
+        Colormap for visualizing lithology.
+    norm : matplotlib.colors.Normalize
+        Normalization for lithology colors.
+    
+    Notes
+    -----
+    The typical workflow involves:
+    1. Initialize with bounding box and data file paths
+    2. Load data and create LoopStructural model
+    3. Use plotting methods for visualization and QC
+    4. Generate surfaces for use in flow modeling
+    
+    The class provides various transect plotting methods for visualizing
+    the 3D geological architecture from different orientations.
+    
+    Examples
+    --------
+    >>> bbox = [[0, 0, -500], [10000, 10000, 100]]
+    >>> sm = StructuralModel(bbox, 'geomodel.xlsx', 'Data', 'Stratigraphy')
+    >>> sm.plot_transect(x0=0, x1=10000, y0=5000, y1=5000, 
+    ...                 z0=-500, z1=100, nh=100, nv=50)
+    """
     def __init__(self, bbox, geodata_fname, data_sheetname, strat_sheetname):
         self.geodata_fname = geodata_fname
         self.data_sheetname = data_sheetname

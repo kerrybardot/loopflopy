@@ -1,4 +1,5 @@
-# test
+# This is the most up to date version of the code for creating geological models from LoopStructural structural models. 
+# It is still a work in progress and will be updated as I work through the different discretisation schemes and test them.
 
 import numpy as np
 import flopy
@@ -178,6 +179,10 @@ class Geomodel:
     ----------
     scenario : str
         Name identifier for the geological model scenario.
+    mesh : Mesh
+        The computational mesh object containing cell centers and geometry.
+    structuralmodel : StructuralModel
+        The structural geological model from LoopStructural.
     vertgrid : str
         Vertical discretization scheme. Options:
         - 'vox': Fixed voxel-based discretization
@@ -310,8 +315,7 @@ class Geomodel:
         
         self.units = np.array(structuralmodel.strat_names[1:])
         self.strat_names = structuralmodel.strat_names[1:]
-        if self.nlg is None:
-            self.nlg = len(self.strat_names)  
+        if self.nlg is None: self.nlg = len(self.strat_names)  
         z0, z1 = self.z0, self.z1
         self.ncpl = mesh.ncpl
         self.plangrid = mesh.plangrid
@@ -395,13 +399,10 @@ class Geomodel:
         This method converts the high-resolution structural model evaluation into
         discrete model layers suitable for numerical flow simulation. Different
         algorithms are used depending on the vertical discretization scheme.
+        Uses mesh and structuralmodel from instance attributes.
         
         Parameters
         ----------
-        mesh : Mesh
-            The computational mesh object.
-        structuralmodel : StructuralModel
-            The structural model created by LoopStructural
         surface : ndarray
             Ground surface elevation at each mesh cell (m).
         max_thick : list of float, optional
@@ -898,7 +899,46 @@ class Geomodel:
         run_time = t1 - t0
         print('   Time taken Block 5 Fill cell properties = ', run_time.total_seconds())
 
-    def fill_cell_properties_heterogeneous(self, properties): # Uses lithology codes to populate arrays 
+    def fill_cell_properties_heterogeneous(self, properties):
+        """
+        Populate hydraulic property arrays using heterogeneous property distributions.
+        
+        This method assigns spatially variable hydraulic properties to each model cell
+        based on lithology codes and heterogeneous property fields. Unlike the homogeneous
+        fill_cell_properties method, this uses pre-computed spatially variable properties
+        from kriging or other interpolation methods.
+        
+        Parameters
+        ----------
+        properties : Properties
+            Properties object containing heterogeneous hydraulic property arrays
+            (kh_disu, kv_disu, ss_disu, sy_disu) in DISU format.
+        
+        Notes
+        -----
+        The method:
+        1. Extracts lithology codes for active cells
+        2. Assigns convertible layer flags based on lithology
+        3. Assigns heterogeneous K, Ss, and Sy values from properties object
+        4. Calculates hydraulic conductivity tensor angles from gradient vectors
+        5. Converts arrays from DISV to DISU format for unstructured grids
+        6. Computes logarithmic hydraulic conductivity values
+        
+        Sets Attributes
+        ---------------
+        k11, k22, k33 : ndarray
+            Hydraulic conductivity tensor components (DISU format).
+        ss, sy : ndarray
+            Storage properties (DISU format).
+        iconvert : ndarray
+            Convertible layer flags (DISU format).
+        angle1, angle2, angle3 : ndarray
+            Hydraulic conductivity tensor angles (DISU format).
+        logk11, logk22, logk33 : ndarray
+            Logarithmic hydraulic conductivity values.
+        lith : ndarray
+            Lithology codes for active cells (DISU format).
+        """
        
 #---------- PROP ARRAYS (VOX and CON) ----- 
         print('\n5. Filling cell properties (heterogeneous)...')        
@@ -935,6 +975,35 @@ class Geomodel:
         print('   Time taken Block 5 Fill cell properties = ', run_time.total_seconds())
 
     def geomodel_plan_lith(self, spatial, mesh, structuralmodel, **kwargs):
+        """
+        Plot plan view map of surface geology from the geological model.
+        
+        Creates a plan-view map showing the lithological units at the model surface,
+        with contour lines marking geological boundaries. Saves contour lines as shapefile.
+        
+        Parameters
+        ----------
+        spatial : Spatial
+            Spatial data object containing model boundaries and coordinate system.
+        mesh : Mesh
+            Computational mesh with cell center coordinates.
+        structuralmodel : StructuralModel
+            Structural model containing color mapping and unit names.
+        **kwargs
+            x0, y0 : float
+                Minimum x and y coordinates for plot extent (default: spatial bounds).
+            x1, y1 : float
+                Maximum x and y coordinates for plot extent (default: spatial bounds).
+        
+        Notes
+        -----
+        The method:
+        1. Plots surface lithology using model colormap
+        2. Interpolates lithology onto regular grid
+        3. Creates contour lines at geological boundaries
+        4. Saves contour lines to shapefile: '../data/data_shp/geomodel_surface_contours.shp'
+        5. Displays colorbar with unit names
+        """
         x0 = kwargs.get('x0', spatial.x0)
         y0 = kwargs.get('y0', spatial.y0)
         x1 = kwargs.get('x1', spatial.x1)
@@ -991,22 +1060,21 @@ class Geomodel:
         
         Creates a 2D cross-section plot displaying the lithological units along
         a specified transect line through the 3D geological model.
+        Uses mesh, structuralmodel, z0, and z1 from instance attributes.
         
         Parameters
         ----------
-        structuralmodel : StructuralModel
-            The structural model containing color mapping and unit names.
-        spatial : Spatial
-            Spatial data object containing model boundaries.
+        figsize : tuple, optional
+            Figure size as (width, height) in inches (default: (8, 3)).
         plot_node : int, optional
             Specific model node (zero-based) to highlight on the transect (default: None).
         **kwargs
             x0, y0 : float
-                Starting coordinates of transect line (default: spatial bounds).
+                Starting coordinates of transect line (default: first mesh cell center).
             x1, y1 : float
-                Ending coordinates of transect line (default: spatial bounds).
+                Ending coordinates of transect line (default: last mesh cell center).
             z0, z1 : float
-                Vertical extent for plotting (default: model domain).
+                Vertical extent for plotting (default: model domain z0, z1).
         
         Notes
         -----
@@ -1023,8 +1091,8 @@ class Geomodel:
 
         # Extract scalar coordinates from arrays to avoid dimension mismatch
         x0 = kwargs.get('x0', self.mesh.vgrid.xcellcenters[0])
-        y0 = kwargs.get('y0', self.mesh.vgrid.ycellcenters[-1])
-        x1 = kwargs.get('x1', self.mesh.vgrid.xcellcenters[0])
+        y0 = kwargs.get('y0', self.mesh.vgrid.ycellcenters[0])
+        x1 = kwargs.get('x1', self.mesh.vgrid.xcellcenters[-1])
         y1 = kwargs.get('y1', self.mesh.vgrid.ycellcenters[-1])
         z0 = kwargs.get('z0', self.z0)
         z1 = kwargs.get('z1', self.z1)
@@ -1059,18 +1127,17 @@ class Geomodel:
 
 
     def geomodel_transect_array(self, array, title, grid = True,
-                                vmin = None, vmax = None, figsize = (8,3),**kwargs):
+                                vmin = None, vmax = None, figsize = (8,3),
+                                cmap = 'bwr',**kwargs):
         """
         Plot a cross-sectional view of any 3D array through the geological model.
         
         Creates a 2D cross-section plot displaying values from a 3D array
         (such as hydraulic head, hydraulic conductivity, etc.) along a specified
-        transect line through the model.
+        transect line through the model. Uses mesh, z0, and z1 from instance attributes.
         
         Parameters
         ----------
-        spatial : Spatial
-            Spatial data object containing model boundaries.
         array : ndarray
             3D array to plot with shape (nlay, ncpl) matching the model grid.
         title : str
@@ -1079,13 +1146,17 @@ class Geomodel:
             Whether to overlay model grid lines (default: True).
         vmin, vmax : float, optional
             Minimum and maximum values for color scale (default: None, auto-scale).
+        figsize : tuple, optional
+            Figure size as (width, height) in inches (default: (8, 3)).
+        cmap : str, optional
+            Matplotlib colormap name (default: 'bwr').
         **kwargs
             x0, y0 : float
-                Starting coordinates of transect line (default: spatial bounds).
+                Starting coordinates of transect line (default: minimum mesh coordinates).
             x1, y1 : float
-                Ending coordinates of transect line (default: spatial bounds).
+                Ending coordinates of transect line (default: maximum mesh coordinates).
             z0, z1 : float
-                Vertical extent for plotting (default: model domain).
+                Vertical extent for plotting (default: model domain z0, z1).
         
         Notes
         -----
@@ -1108,7 +1179,8 @@ class Geomodel:
         fig = plt.figure(figsize = figsize)
         ax = plt.subplot(111)
         xsect = flopy.plot.PlotCrossSection(modelgrid=self.vgrid , line={"line": [(x0, y0),(x1, y1)]}, geographic_coords=True)
-        csa = xsect.plot_array(a = array, alpha=0.8, vmin = vmin, vmax = vmax)
+
+        csa = xsect.plot_array(a = array, alpha=0.8, vmin = vmin, vmax = vmax, cmap = cmap)
         ax.set_xlabel('x (m)', size = 10)
         ax.set_ylabel('z (m)', size = 10)        
         ax.set_ylim([z0, z1])
@@ -1123,6 +1195,24 @@ class Geomodel:
         plt.show() 
 
     def get_surface_lith(self):
+        """
+        Extract surface lithology for each column in the model.
+        
+        Determines the lithology code at the ground surface by finding the first
+        active cell (idomain == 1) in each vertical column from top to bottom.
+        
+        Notes
+        -----
+        This method iterates through each column (icpl) of the model and searches
+        downward from the top layer to find the first active cell. The lithology
+        code of that cell is assigned as the surface lithology.
+        
+        Sets Attributes
+        ---------------
+        surf_lith : ndarray
+            Surface lithology codes for each column (ncpl,). Values of -999
+            indicate no active cells in that column.
+        """
         lith = self.lith_disv
         idomain = self.idomain
         ncpl = lith.shape[1]
@@ -1205,7 +1295,32 @@ class Geomodel:
         
     def contour_surface(self, spatial, mesh, structuralmodel, contour_interval):
         """
-        Contour the model top
+        Create contour map of the model top (ground surface) elevation.
+        
+        Generates a plan-view contour map showing the ground surface elevation
+        with data points and model boundaries overlaid.
+        
+        Parameters
+        ----------
+        spatial : Spatial
+            Spatial data object containing model boundaries.
+        mesh : Mesh
+            Computational mesh with cell center coordinates.
+        structuralmodel : StructuralModel
+            Structural model containing geological data.
+        contour_interval : float
+            Vertical spacing between contour lines (m).
+        
+        Notes
+        -----
+        The method:
+        1. Interpolates model top elevations onto a regular grid
+        2. Creates filled contour plot with specified interval
+        3. Overlays model boundaries and ground surface data points
+        4. Adds colorbar and elevation labels
+        
+        The contour levels are automatically calculated based on the
+        elevation range and specified interval, rounded to neat values.
         """
         def rounded_down(number, contour_interval): # rounded_to is the nearest 1, 10, 100 etc
             return math.floor(number / contour_interval) * contour_interval
