@@ -415,7 +415,7 @@ class Mesh:
             self.gi = flopy.utils.GridIntersect(self.vgrid)
             
             if hasattr(spatial, 'model_boundary_poly'):
-                cells_within_bd = self.gi.intersect(spatial.model_boundary_poly)["cellids"]
+                cells_within_bd = self.gi.intersect(spatial.model_boundary_poly, geo_dataframe=True)["cellids"]
                 self.idomain = np.zeros((self.ncpl))
                 for icpl in cells_within_bd:
                     self.idomain[icpl] = 1
@@ -587,7 +587,7 @@ class Mesh:
                                                     #top=np.ones((self.nrow, self.ncol), dtype=float), 
                                                     #botm=np.zeros((1, self.nrow, self.ncol), dtype=float), 
                                                     nlay = 1)
-        self.gi = flopy.utils.GridIntersect(self.vgrid)
+        self.gi = flopy.utils.GridIntersect(self.vgrid, geo_dataframe=True)
 
         print(f'\nTransect length: {self.length}')
         print('x0 = ', x0, ' ,y0 = ', y0)
@@ -732,7 +732,7 @@ class Mesh:
                                                      #top=np.ones((self.nrow, self.ncol), dtype=float), 
                                                      #botm=np.zeros((1, self.nrow, self.ncol), dtype=float), 
                                                      nlay = 1)
-        self.gi = flopy.utils.GridIntersect(self.vgrid)
+        self.gi = flopy.utils.GridIntersect(self.vgrid, geo_dataframe=True)
 
         print(f'\nTransect length: {self.length}')
         print('x0 = ', x0, ' ,y0 = ', y0)
@@ -840,7 +840,7 @@ class Mesh:
                     self.cell_type.append(f'{group} - {subgroup}')
                     points = [Point(xy) for xy in spatial.xyobsbores]
                     for point in points:
-                        cell = self.gi.intersect(point)["cellids"][0]
+                        cell = self.gi.intersect(point, geo_dataframe=True)["cellids"][0]
                         self.ibd[cell] = flag
                         self.obs_cells.append(cell)
                     flag += 1
@@ -851,7 +851,7 @@ class Mesh:
                     self.cell_type.append(f'{group} - {subgroup}')
                     points = [Point(xy) for xy in spatial.xypumpbores]
                     for point in points:
-                        cell = self.gi.intersect(point)["cellids"][0]
+                        cell = self.gi.intersect(point, geo_dataframe=True)["cellids"][0]
                         self.ibd[cell] = flag
                         self.wel_cells.append(cell)
                     flag += 1
@@ -863,7 +863,7 @@ class Mesh:
                     att_name = f"chd_{subgroup}_ls"
                     ls = getattr(spatial, att_name)
                     
-                    cells = self.gi.intersects(ls)["cellids"]
+                    cells = self.gi.intersects(ls, geo_dataframe=True)["cellids"]
 
                     att_name = f"chd_{subgroup}_cells"
                     setattr(self, att_name, cells)
@@ -880,7 +880,7 @@ class Mesh:
                     att_name = f"ghb_{subgroup}_ls"
                     ls = getattr(spatial, att_name)
                     
-                    cells = self.gi.intersects(ls)["cellids"]
+                    cells = self.gi.intersects(ls, geo_dataframe=True)["cellids"]
 
                     att_name = f"ghb_{subgroup}_cells"
                     setattr(self, att_name, cells)
@@ -895,7 +895,7 @@ class Mesh:
                     self.cell_type.append(f'{group} - {subgroup}')
                     att_name = f"{subgroup}_poly"
                     poly = getattr(spatial, att_name)
-                    result = self.gi.intersect(poly)
+                    result = self.gi.intersect(poly, geo_dataframe=True)
                     cells = result.cellids
 
                     for cell in cells:
