@@ -732,7 +732,7 @@ class Mesh:
                                                      #top=np.ones((self.nrow, self.ncol), dtype=float), 
                                                      #botm=np.zeros((1, self.nrow, self.ncol), dtype=float), 
                                                      nlay = 1)
-        self.gi = flopy.utils.GridIntersect(self.vgrid, geo_dataframe=True)
+        self.gi = flopy.utils.GridIntersect(self.vgrid)
 
         print(f'\nTransect length: {self.length}')
         print('x0 = ', x0, ' ,y0 = ', y0)
@@ -851,7 +851,7 @@ class Mesh:
                     self.cell_type.append(f'{group} - {subgroup}')
                     points = [Point(xy) for xy in spatial.xypumpbores]
                     for point in points:
-                        cell = self.gi.intersect(point, geo_dataframe=True)["cellids"][0]
+                        cell = self.gi.intersect(point, dataframe=True)["cellids"][0]
                         self.ibd[cell] = flag
                         self.wel_cells.append(cell)
                     flag += 1
@@ -863,7 +863,7 @@ class Mesh:
                     att_name = f"chd_{subgroup}_ls"
                     ls = getattr(spatial, att_name)
                     
-                    cells = self.gi.intersects(ls, geo_dataframe=True)["cellids"]
+                    cells = self.gi.intersects(ls, dataframe=True)["cellids"]
 
                     att_name = f"chd_{subgroup}_cells"
                     setattr(self, att_name, cells)
