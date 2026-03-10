@@ -533,8 +533,8 @@ class Geomodel:
                 present = np.unique(V[:,icpl])
                 present = present[present >= 0] # this is to handle "sky cells" with surface lithology. Need to fix this later.
                 present = present[present < n_geo_lay] # this is to handle instances where geology goes in reverse order (back to a younger sequence)
-                for p in present:
-                    idomain_geo[p, icpl] = 1
+                #for p in present:
+                    #idomain_geo[p, icpl] = 1
                 
                 stop = np.array([nlay-1]) # Add the last layer to start with
                 #print('line 239 stop ', stop)
@@ -566,8 +566,8 @@ class Geomodel:
             botm_geo = botm_geo[1:,:]
             top_geo = surface
             print('   botm_geo_shape', botm_geo.shape)
-            print('   idomain_geo unique values and counts: ', 
-                  np.unique(idomain_geo, return_counts=True))
+            #print('   idomain_geo unique values and counts: ', 
+                  #np.unique(idomain_geo, return_counts=True))
 
             ### NOW IF FLOW MODEL USES LESS LAYERS THAN GEO MODEL, 
             ### THEN CUT GEO MODEL ARRAYS DOWN TO SIZE OF FLOW MODEL
@@ -575,7 +575,7 @@ class Geomodel:
             if self.nlg < n_geo_lay:
                 print("   Note: Geomodel bottom = geological layer bottom (not flat bottom)")
                 botm_geo = botm_geo[:self.nlg, :]
-                idomain_geo = idomain_geo[:self.nlg, :]
+                #idomain_geo = idomain_geo[:self.nlg, :]
 
             else:    
                 print("   Note: Geomodel bottom = flat at z0 (not bottom of geo layer)")
@@ -583,74 +583,71 @@ class Geomodel:
 
         
 
-        if self.pinchouts == False:
+            if self.pinchouts == False:
 
-            # --- Now we have to check that there are no cells with top < botm
-            # --- If so, we need to replace thickness with nearest nieghbour
-            def find_nearest_bestest_neighbour(mesh, thickness, cellid, top_lay, bot_lay):
-                x, y = mesh.xc[cellid], mesh.yc[cellid]
-                distance = np.array([np.sqrt((mesh.xc[i]-x)**2 + (mesh.yc[i]-y)**2) for i in range(mesh.ncpl)])
-                
-                # FIND THE NEAREST. Mask where distance == 0 (the cell itself)
-                masked_distance = np.ma.masked_where(distance == 0, distance)
+                # --- Now we have to check that there are no cells with top < botm
+                # --- If so, we need to replace thickness with nearest nieghbour
+                def find_nearest_bestest_neighbour(mesh, thickness, cellid, top_lay, bot_lay):
+                    x, y = mesh.xc[cellid], mesh.yc[cellid]
+                    distance = np.array([np.sqrt((mesh.xc[i]-x)**2 + (mesh.yc[i]-y)**2) for i in range(mesh.ncpl)])
+                    
+                    # FIND THE NEAREST. Mask where distance == 0 (the cell itself)
+                    masked_distance = np.ma.masked_where(distance == 0, distance)
 
-                # FIND THE BESTEST. Mask where groundsurface below bottom surface
-                masked = np.ma.masked_where(thickness <=0 , masked_distance)
-                
-                # Find the minimum distance excluding the masked values
-                idx = np.where(distance == np.min(masked))[0][0]
+                    # FIND THE BESTEST. Mask where groundsurface below bottom surface
+                    masked = np.ma.masked_where(thickness <=0 , masked_distance)
+                    
+                    # Find the minimum distance excluding the masked values
+                    idx = np.where(distance == np.min(masked))[0][0]
 
-                return idx
+                    return idx
             
-            # Checking for surface layer pinchouts and replacing with nearest neighbour thickness
+                # Checking for surface layer pinchouts and replacing with nearest neighbour thickness
 
-            count = 0
-            for geolay in range(self.nlg):
-                
-                # Top layer
-                if geolay == 0:
-                    thickness = top_geo - botm_geo[geolay]
-                    for icpl in range(self.mesh.ncpl): 
-                        if thickness[icpl] <= 0: # if the bottom if above ground surface...
+                count = 0
+                for geolay in range(self.nlg):
+                    
+                    # Top layer
+                    if geolay == 0:
+                        thickness = top_geo - botm_geo[geolay]
+                        for icpl in range(self.mesh.ncpl): 
+                            if thickness[icpl] <= 0: # if the bottom if above ground surface...
+                                nncell = find_nearest_bestest_neighbour(self.mesh, thickness, icpl, top_geo, botm_geo[geolay]) # find nearest neighbour..
+                                botm_geo[geolay][icpl] = top_geo[icpl] - thickness[nncell] # make the negative thickness cell half the thickness as neighbouring cell                          
+                                count += 1
+                        print(f'   Checked geological layer {geolay}: {self.structuralmodel.strat_names[geolay+1]} for pinchouts.')
+                        print('     Number of cells with negative thickness that have been converted= ', count)
+                        print('     New min thickness = ', np.min(top_geo - botm_geo[geolay]), 'New max thickness = ', np.max(top_geo - botm_geo[geolay]),'\n')
 
-                            nncell = find_nearest_bestest_neighbour(self.mesh, thickness, icpl, top_geo, botm_geo[geolay]) # find nearest neighbour..
-                            botm_geo[geolay][icpl] = top_geo[icpl] - thickness[nncell] # make the negative thickness cell half the thickness as neighbouring cell                          
-                            idomain_geo[geolay][icpl] = 1 # make sure cell is active in idomain
-                            count += 1
-                    print(f'   Checked geological layer {geolay}: {self.structuralmodel.strat_names[geolay+1]} for pinchouts.')
-                    print('     Number of cells with negative thickness that have been converted= ', count)
-                    print('     New min thickness = ', np.min(top_geo - botm_geo[geolay]), 'New max thickness = ', np.max(top_geo - botm_geo[geolay]),'\n')
+                    # All other layers...
+                    else:
+                        thickness = botm_geo[geolay-1] - botm_geo[geolay]
+                        for icpl in range(self.mesh.ncpl):
+                            if thickness[icpl] <= 0: # if the bottom if above ground surface...
+                                nncell = find_nearest_bestest_neighbour(self.mesh, thickness, icpl, botm_geo[geolay-1], botm_geo[geolay]) # find nearest neighbour..
+                                botm_geo[geolay][icpl] = botm_geo[geolay-1][icpl] - thickness[nncell] # make the negative thickness cell have half the thickness as neighbouring cell
+                                count += 1
+                        print(f'   \nChecked geological layer {geolay}: {self.structuralmodel.strat_names[geolay+1]} for pinchouts.')
+                        print('     Number of cells with negative thickness that have been converted= ', count)
+                        print('     New min thickness = ', np.min(top_geo - botm_geo[geolay]), 'New max thickness = ', np.max(top_geo - botm_geo[geolay]),'\n')
 
-                # All other layers...
+            # Get thicknesses for geological layers
+            idomain_geo = np.zeros((self.nlg, self.mesh.ncpl), dtype=float)
+            for lay_geo in range(self.nlg):
+                if lay_geo == 0:
+                    thick_geo[lay_geo, :] = top_geo - botm_geo[lay_geo,:]
+                    idomain_geo[lay_geo, :] = np.where(thick_geo[lay_geo, :] > 0, 1, 0)
                 else:
-                    thickness = botm_geo[geolay-1] - botm_geo[geolay]
-                    for icpl in range(self.mesh.ncpl):
-                        if thickness[icpl] <= 0: # if the bottom if above ground surface...
-                            nncell = find_nearest_bestest_neighbour(self.mesh, thickness, icpl, botm_geo[geolay-1], botm_geo[geolay]) # find nearest neighbour..
-                            botm_geo[geolay][icpl] = botm_geo[geolay-1][icpl] - thickness[nncell] # make the negative thickness cell have half the thickness as neighbouring cell
-                            idomain_geo[geolay][icpl] = 1 # make sure cell is active in idomain
-                            count += 1
-                    print(f'   \nChecked geological layer {geolay}: {self.structuralmodel.strat_names[geolay+1]} for pinchouts.')
-                    print('     Number of cells with negative thickness that have been converted= ', count)
-                    print('     New min thickness = ', np.min(top_geo - botm_geo[geolay]), 'New max thickness = ', np.max(top_geo - botm_geo[geolay]),'\n')
-        
-        print('   idomain_geo unique values and counts: ', 
-                np.unique(idomain_geo, return_counts=True))
+                    thick_geo[lay_geo, :] = botm_geo[lay_geo-1,:] - botm_geo[lay_geo,:]
+                    idomain_geo[lay_geo, :] = np.where(thick_geo[lay_geo, :] > 0, 1, 0)
 
-        # Get thicknesses for geological layers
-        idomain_geo = np.zeros((n_geo_lay, self.mesh.ncpl), dtype=float)
-        for lay_geo in range(self.nlg):
-            if lay_geo == 0:
-                thick_geo[lay_geo, :] = top_geo - botm_geo[lay_geo,:]
-                idomain_geo[lay_geo, :] = np.where(thick_geo[lay_geo, :] > 0, 1, 0)
-            else:
-                thick_geo[lay_geo, :] = botm_geo[lay_geo-1,:] - botm_geo[lay_geo,:]
-                idomain_geo[lay_geo, :] = np.where(thick_geo[lay_geo, :] > 0, 1, 0)
+            print('   idomain_geo unique values and counts: ', 
+            np.unique(idomain_geo, return_counts=True))
 
-        self.top_geo = top_geo
-        self.botm_geo = botm_geo  
-        self.thick_geo = thick_geo    
-        self.idomain_geo = idomain_geo 
+            self.top_geo = top_geo
+            self.botm_geo = botm_geo  
+            self.thick_geo = thick_geo    
+            self.idomain_geo = idomain_geo 
             
         t1 = datetime.now()
         run_time = t1 - t0
@@ -1138,7 +1135,7 @@ class Geomodel:
         gdf = gpd.GeoDataFrame(geometry=contour_lines, crs = spatial.epsg)
         gdf.to_file('../data/data_shp/geomodel_surface_contours.shp', driver='ESRI Shapefile')
 
-    def geomodel_transect_lith(self, figsize = (8,3), plot_node = None, **kwargs):
+    def geomodel_transect_lith(self, title = None, figsize = (8,3), plot_node = None, **kwargs):
         """
         Plot a cross-sectional view of the geological model showing lithology.
         
@@ -1148,6 +1145,8 @@ class Geomodel:
         
         Parameters
         ----------
+        title : str
+            Title for the plot.
         figsize : tuple, optional
             Figure size as (width, height) in inches (default: (8, 3)).
         plot_node : int, optional
@@ -1205,7 +1204,10 @@ class Geomodel:
                             shrink = 1.0
                             )
         cbar.ax.set_yticks(ticks = ticks, labels = labels, size = 8, verticalalignment = 'center')    
-        plt.title(f"x0, y0 = {x0:.0f}, {x1:.0f}: x1, y1 = {y0:.0f}, {y1:.0f}", size=8)
+        if title:
+            plt.title(title, size=8)
+        else:
+            plt.title(f"x0, y0 = {x0:.0f}, {x1:.0f}: x1, y1 = {y0:.0f}, {y1:.0f}", size=8)
         plt.tight_layout()  
         plt.show()   
 

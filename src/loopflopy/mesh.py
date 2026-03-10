@@ -551,6 +551,7 @@ class Mesh:
         iverts = sg.iverts
         verts = sg.verts
 
+
         cell2d = []
         xcyc = [] # added 
         for icpl in range(self.ncpl):
@@ -587,7 +588,7 @@ class Mesh:
                                                     #top=np.ones((self.nrow, self.ncol), dtype=float), 
                                                     #botm=np.zeros((1, self.nrow, self.ncol), dtype=float), 
                                                     nlay = 1)
-        self.gi = flopy.utils.GridIntersect(self.vgrid, geo_dataframe=True)
+        self.gi = flopy.utils.GridIntersect(self.vgrid)
 
         print(f'\nTransect length: {self.length}')
         print('x0 = ', x0, ' ,y0 = ', y0)
@@ -863,7 +864,7 @@ class Mesh:
                     att_name = f"chd_{subgroup}_ls"
                     ls = getattr(spatial, att_name)
                     
-                    cells = self.gi.intersects(ls, geo_dataframe=True)["cellids"]
+                    cells = self.gi.intersects(ls,)["cellids"]
 
                     att_name = f"chd_{subgroup}_cells"
                     setattr(self, att_name, cells)
@@ -880,7 +881,7 @@ class Mesh:
                     att_name = f"ghb_{subgroup}_ls"
                     ls = getattr(spatial, att_name)
                     
-                    cells = self.gi.intersects(ls, geo_dataframe=True)["cellids"]
+                    cells = self.gi.intersects(ls)["cellids"]
 
                     att_name = f"ghb_{subgroup}_cells"
                     setattr(self, att_name, cells)
@@ -1151,7 +1152,7 @@ class Mesh:
                            plot_data = False, 
                            vmin = None, vmax = None, 
                            plot_grid = False, 
-                           levels = None, title = None):
+                           levels = None, title = None,):
         """
         Plot a 2D array over the mesh surface with geological context.
         
