@@ -804,14 +804,14 @@ class Mesh:
         
         Examples
         --------
-        >>> # Define special cells with observation and pumping wells
-        >>> special_cells = {
-        ...     'obs': ['monitoring'],
-        ...     'wel': ['production'],
-        ...     'chd': ['west', 'east']
-        ... }
-        >>> mesh = Mesh('tri', special_cells=special_cells)
-        >>> mesh.locate_special_cells(spatial, threshold=0.8)
+        # Define special cells with observation and pumping wells
+        special_cells = {
+             'obs': ['monitoring'],
+             'wel': ['production'],
+             'chd': ['west', 'east']
+         }
+         mesh = Mesh('tri', special_cells=special_cells)
+         mesh.locate_special_cells(spatial, threshold=0.8)
         """
         
         self.obs_cells = [] 
@@ -864,11 +864,7 @@ class Mesh:
                     att_name = f"chd_{subgroup}_ls"
                     ls = getattr(spatial, att_name)
                     
-<<<<<<< HEAD
-                    cells = self.gi.intersects(ls,)["cellids"]
-=======
                     cells = self.gi.intersects(ls, dataframe=True)["cellids"]
->>>>>>> 334adbf4f9bc89ac1b12fb4e7abcccd919bdac7e
 
                     att_name = f"chd_{subgroup}_cells"
                     setattr(self, att_name, cells)
