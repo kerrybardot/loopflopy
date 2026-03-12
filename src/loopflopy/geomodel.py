@@ -358,6 +358,7 @@ class Geomodel:
 
         if self.vertgrid == 'con' or self.vertgrid == 'con2' : # CREATING DIS AND NPF ARRAYS
             self.res = res
+            print('*** ', z0, z1, self.res)
             nlay = int((z1 - z0)/self.res)
             dz = (z1 - z0)/nlay # actual resolution
             self.dz = dz
@@ -660,6 +661,7 @@ class Geomodel:
 
             t0 = datetime.now()
             print('   number of geological layers in geomodel = ', self.nlg)
+            print('number of sublayers per geological layer = ', self.nls)
             self.nlay   = self.nlg * self.nls # number of model layers = geo layers * sublayers 
             self.lith = np.zeros((self.nlay, self.mesh.ncpl), dtype=float) # lithology for each model layer
 
@@ -1185,7 +1187,9 @@ class Geomodel:
         fig = plt.figure(figsize = figsize)
         ax = plt.subplot(111)
         #ax.set_aspect('equal')
-        xsect = flopy.plot.PlotCrossSection(modelgrid=self.vgrid , line={"line": [(x0, y0),(x1, y1)]}, extent = extent, geographic_coords=True)
+        xsect = flopy.plot.PlotCrossSection(modelgrid=self.vgrid , 
+                                            line={"line": [(x0, y0),(x1, y1)]}, 
+                                            geographic_coords=True, extent = extent)
         csa = xsect.plot_array(a = self.lith_disv, cmap = self.structuralmodel.cmap, norm = self.structuralmodel.norm, alpha=0.8)
         ax.set_xlabel('x (m)', size = 10)
         ax.set_ylabel('z (m)', size = 10)
@@ -1263,10 +1267,14 @@ class Geomodel:
         x1 = kwargs.get('x1', max(self.mesh.xc))
         y1 = kwargs.get('y1', max(self.mesh.yc))
         z1 = kwargs.get('z1', self.z1)
+
     
         fig = plt.figure(figsize = figsize)
         ax = plt.subplot(111)
-        xsect = flopy.plot.PlotCrossSection(modelgrid=self.vgrid , line={"line": [(x0, y0),(x1, y1)]}, geographic_coords=True)
+        xsect = flopy.plot.PlotCrossSection(modelgrid=self.vgrid , 
+                                            line={"line": [(x0, y0),(x1, y1)]}, 
+                                            extent = (x0, x1, y0, y1), 
+                                            geographic_coords=True)
 
         csa = xsect.plot_array(a = array, alpha=0.8, vmin = vmin, vmax = vmax, cmap = cmap)
         ax.set_xlabel('x (m)', size = 10)
