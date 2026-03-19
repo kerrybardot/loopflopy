@@ -611,11 +611,19 @@ class Geomodel:
                     # Top layer
                     if geolay == 0:
                         thickness = top_geo - botm_geo[geolay]
+                        # This method ensures that pinched out cells have a thickness equal to the resolution 
+                        # (so they are not inactive but very thin).
                         for icpl in range(self.mesh.ncpl): 
-                            if thickness[icpl] <= 0: # if the bottom if above ground surface...
+                            if thickness[icpl] <= self.res: # if the bottom if above ground surface...
+                                # makes the layer the specified resolution of block model, and times by 1.5 to ensure connectivity
+                                botm_geo[geolay][icpl] = top_geo[icpl] - self.res * 2                         
+                                count += 1
+                            # When very thin cells, this method used nearest neighbour to find thickness but also didnt seem to work
+                            # when layers are VERY THIN
+                            '''if thickness[icpl] <= 0: # if the bottom if above ground surface...
                                 nncell = find_nearest_bestest_neighbour(self.mesh, thickness, icpl, top_geo, botm_geo[geolay]) # find nearest neighbour..
                                 botm_geo[geolay][icpl] = top_geo[icpl] - thickness[nncell] # make the negative thickness cell half the thickness as neighbouring cell                          
-                                count += 1
+                                count += 1'''
                         print(f'   Checked geological layer {geolay}: {self.structuralmodel.strat_names[geolay+1]} for pinchouts.')
                         print('     Number of cells with negative thickness that have been converted= ', count)
                         print('     New min thickness = ', np.min(top_geo - botm_geo[geolay]), 'New max thickness = ', np.max(top_geo - botm_geo[geolay]),'\n')
@@ -1137,7 +1145,11 @@ class Geomodel:
         gdf = gpd.GeoDataFrame(geometry=contour_lines, crs = spatial.epsg)
         gdf.to_file('../data/data_shp/geomodel_surface_contours.shp', driver='ESRI Shapefile')
 
+<<<<<<< Updated upstream
     def geomodel_transect_lith(self, title = None, figsize = (8,3), extent = None, plot_node = None, **kwargs):
+=======
+    def geomodel_transect_lith(self, title = None, xlim = None, zlim = None, figsize = (8,3), plot_node = None, extent = None, **kwargs):
+>>>>>>> Stashed changes
         """
         Plot a cross-sectional view of the geological model showing lithology.
         
@@ -1193,7 +1205,12 @@ class Geomodel:
         csa = xsect.plot_array(a = self.lith_disv, cmap = self.structuralmodel.cmap, norm = self.structuralmodel.norm, alpha=0.8)
         ax.set_xlabel('x (m)', size = 10)
         ax.set_ylabel('z (m)', size = 10)
-        ax.set_ylim([z0, z1])
+        if xlim:
+            ax.set_xlim([xlim[0], xlim[1]])  
+        if zlim:
+            ax.set_ylim([zlim[0], zlim[1]])
+        else:
+            ax.set_ylim([z0, z1])
   
         linecollection = xsect.plot_grid(lw = 0.1, color = 'black') 
 
@@ -1219,7 +1236,8 @@ class Geomodel:
 
 
     def geomodel_transect_array(self, array, title, grid = True,
-                                vmin = None, vmax = None, figsize = (8,3),
+                                vmin = None, vmax = None, 
+                                xlim = None, zlim = None, figsize = (8,3),
                                 cmap = 'bwr',**kwargs):
         """
         Plot a cross-sectional view of any 3D array through the geological model.
@@ -1278,8 +1296,13 @@ class Geomodel:
 
         csa = xsect.plot_array(a = array, alpha=0.8, vmin = vmin, vmax = vmax, cmap = cmap)
         ax.set_xlabel('x (m)', size = 10)
-        ax.set_ylabel('z (m)', size = 10)        
-        ax.set_ylim([z0, z1])
+        ax.set_ylabel('z (m)', size = 10)  
+        if xlim:
+            ax.set_xlim([xlim[0], xlim[1]])  
+        if zlim:
+            ax.set_ylim([zlim[0], zlim[1]])
+        else:
+            ax.set_ylim([z0, z1])
   
         if grid:
             linecollection = xsect.plot_grid(lw = 0.1, color = 'black') 

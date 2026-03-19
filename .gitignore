@@ -2,6 +2,16 @@ loopflopy/.ipynb_checkpoints
 loopflopy/modelling_routines_old.py
 **/modelfiles
 
+# Ignore figures folders
+examples/Example 1 - Transect/figures/
+examples/Example 2 - 3D/figures/
+examples/Example 3 - Heterogeneity/figures/
+
+# Ignore specific files
+examples/Example 3 - Heterogeneity/data/dem/geomodel_raster.tif
+examples/Example 3 - Heterogeneity/data/~$example_data.xlsx
+examples/Example 3 - Heterogeneity/data/~$truth_properties.xlsx
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
