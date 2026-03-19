@@ -61,7 +61,7 @@ def prepare_strat_column(structuralmodel):
     structuralmodel.sequences = sequences
     structuralmodel.vals = vals
     
-def prepare_geodata(structuralmodel, spatial, extent = None, Fault = True):  
+def prepare_geodata(structuralmodel, spatial, control_points = False, Fault = True):  
 
     strat = structuralmodel.strat
     df = pd.read_excel(structuralmodel.geodata_fname, sheet_name=structuralmodel.data_sheetname)
@@ -96,24 +96,25 @@ def prepare_geodata(structuralmodel, spatial, extent = None, Fault = True):
                 count+=1
         
         #-----------CONTROL POINT-----------------------
-        if data_type == 'Control': ### Z VALUES: mAHD
-            boreid = data_list[i][0]
-            easting, northing = data_list[i][1], data_list[i][2]
-            groundlevel = data_list[i][5] ## NEW!!!!!####
+        if control_points == True:
+            if data_type == 'Control': ### Z VALUES: mAHD
+                boreid = data_list[i][0]
+                easting, northing = data_list[i][1], data_list[i][2]
+                groundlevel = data_list[i][5] ## NEW!!!!!####
 
-            count = 1  # Add data row for each lithology
-            for j in range(6,df.shape[1]-1): #iterate through each formation 
-                if isinstance(data_list[i][j], numbers.Number) == True:  # Add lithology  
-                    Z         = groundlevel - float(data_list[i][j])   # NEW!!!!#          # elevation (mAHD)
-                    val       = strat.val[count]                   # designated isovalue
-                    unit      = strat.unit[count]                  # unit 
-                    feature   = strat.sequence[count]              # sequence
-                    if unit == 'Ground':
-                        gx, gy, gz = 0,0,1                             # normal vector to surface (flat) 
-                    else:
-                        gx, gy, gz = np.nan, np.nan, np.nan 
-                    formatted_data.append([boreid, easting, northing, Z, val, unit, feature, gx, gy, gz, data_type])      
-                count+=1
+                count = 1  # Add data row for each lithology
+                for j in range(6,df.shape[1]-1): #iterate through each formation 
+                    if isinstance(data_list[i][j], numbers.Number) == True:  # Add lithology  
+                        Z         = groundlevel - float(data_list[i][j])   # NEW!!!!#          # elevation (mAHD)
+                        val       = strat.val[count]                   # designated isovalue
+                        unit      = strat.unit[count]                  # unit 
+                        feature   = strat.sequence[count]              # sequence
+                        if unit == 'Ground':
+                            gx, gy, gz = 0,0,1                             # normal vector to surface (flat) 
+                        else:
+                            gx, gy, gz = np.nan, np.nan, np.nan 
+                        formatted_data.append([boreid, easting, northing, Z, val, unit, feature, gx, gy, gz, data_type])      
+                    count+=1
                 
     data = pd.DataFrame(formatted_data)
     data.columns =['ID','X','Y','Z','val','lithcode','feature_name', 'gx', 'gy', 'gz','data_type']

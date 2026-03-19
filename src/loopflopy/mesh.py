@@ -852,7 +852,7 @@ class Mesh:
                     self.cell_type.append(f'{group} - {subgroup}')
                     points = [Point(xy) for xy in spatial.xypumpbores]
                     for point in points:
-                        cell = self.gi.intersect(point, dataframe=True)["cellids"][0]
+                        cell = self.gi.intersect(point, geo_dataframe=True)["cellids"][0]
                         self.ibd[cell] = flag
                         self.wel_cells.append(cell)
                     flag += 1
