@@ -50,7 +50,7 @@ A small but powerful bridge between **LoopStructural** (3‑D geological modelli
 
 ## Install
 
-Loopflopy now uses a **PEP 621** `pyproject.toml` with the **Hatchling** build backend and a **`src/` layout**.
+Loopflopy is packaged with a **PEP 621** `pyproject.toml` uses the **Hatchling** build backend, and a **`src/` layout**.
 
 ### Python & OS
 
@@ -64,12 +64,12 @@ Loopflopy now uses a **PEP 621** `pyproject.toml` with the **Hatchling** build 
 conda create -n loopflopy python=3.12 -y
 conda activate loopflopy
 # core package (minimal deps from [project.dependencies])
-pip install -e .
+pip install  .
 ```
 
 ### Option 2 — Install with extras
 
-The `pyproject.toml` defines optional dependency groups:
+Optional dependency groups defined in `pyproject.toml`:
 
 * `gis`  – GeoPandas/Shapely/Fiona/Proj, raster IO & stats
 * `viz-3d` – PyVista/VTK/Trimesh for 3‑D viewing
@@ -83,10 +83,10 @@ Install one or many groups, e.g.:
 
 ```bash
 # everything needed to run notebooks in examples/
-pip install -e .[examples]
+pip install -e '.[examples]'
 
 # for contributors
-pip install -e .[dev,test]
+pip install -e '.[dev,test]'
 ```
 
 > Note: `viz-3d` pins `pyvista<0.47` and `vtk==9.3.*` because newer combos can break rendering. Keep these versions in sync.
@@ -94,10 +94,20 @@ pip install -e .[dev,test]
 ### Option 3 — From Git (no local clone)
 
 ```bash
-# main repo
+# install from the main repo
 pip install "loopflopy @ git+https://github.com/kerrybardot/loopflopy.git"
-# or your fork
+
+# or from a fork (replace with your user/repo)
 pip install "loopflopy @ git+https://github.com/<your-user>/loopflopy.git"
+```
+With extras over Git:
+
+```bash
+# examples extra directly from Git
+pip install "loopflopy[examples] @ git+https://github.com/kerrybardot/loopflopy.git"
+
+# or from your fork
+pip install "loopflopy[examples] @ git+https://github.com/<your-user>/loopflopy.git"
 ```
 
 ### Build a wheel / sdist (for distribution)
@@ -105,58 +115,22 @@ pip install "loopflopy @ git+https://github.com/<your-user>/loopflopy.git"
 ```bash
 pip install -U build
 python -m build
-# artifacts in dist/*.whl and dist/*.tar.gz
+# artifacts in dist/*.whl and dist/*.tar.gz (Hatchling backend as configured in pyproject.toml)
 ```
 
 ### External prerequisites
 
-* **MODFLOW 6** executable must be on PATH (`mf6`).
-
-  * Conda: `mamba install -c conda-forge modflow6`
 * (optional) **Triangle/Mesh tooling** if your workflow uses triangular meshing.
 
 ## Quick start
 
-Below is a minimal, end‑to‑end sketch. Exact class names and arguments may evolve—see the examples for a working script.
+(Soon)Below is a minimal, end‑to‑end sketch. Exact class names and arguments may evolve—see the examples for a working script.
 
 ```python
 from loopflopy.geomodel import Geomodel
 from loopflopy.mesh import Mesh
 from loopflopy.flowmodel import Flowmodel
 
-# 1) Build/evaluate geology (using a LoopStructural model you prepared elsewhere)
-geo = Geomodel(
-    loopstruct_model=your_loopstruct_model,
-    extent=[xmin, xmax, ymin, ymax, zmin, zmax],
-    dz=10.0,                   # nominal vertical resolution
-    lith_map=your_lithology_map,  # lithology -> unit codes
-)
-geo.evaluate_structuralmodel()       # evaluate lithology & gradients on points
-geo.create_model_layers(method="con")  # build hydrostratigraphic layers/sublayers
-
-# 2) Make a grid
-mesh = Mesh(
-    geomodel=geo,
-    gridkind="disv",          # 'disv' | 'disu' | 'car' (structured)
-    target_cellsize=200.0,
-)
-mesh.create_mesh()
-
-# 3) Assign properties from geology
-geo.fill_cell_properties(
-    k_by_lith={"sand": 1e-4, "silt": 1e-6, "basement": 1e-8},
-    anisotropy_from_gradients=True,
-)
-
-# 4) Build & run the MF6 model
-fm = Flowmodel(mesh=mesh, name="demo")
-fm.write_flowmodel(
-    chd=your_chd_list, ghb=your_ghb_list, wel=your_wells, rch=your_rch,
-)
-fm.run_flowmodel()
-
-# 5) Access results (via FloPy)
-hdobj = fm.mf6_output.head()
 ```
 
 ---
@@ -243,10 +217,9 @@ See the `examples/` folder for runnable notebooks/scripts demonstrating:
 
 ## Troubleshooting
 
-* **mf6 not found** → Install MODFLOW 6 and ensure it’s on PATH.
 * **Geometry looks wrong** → Check CRS/units and the `extent`/`dz` used when evaluating the geology.
 * **Zero‑thickness layers** → Enable sublayering and/or allow pinch‑outs when building layers.
-* **Solver divergence** → Relax time stepping, adjust `ims` tolerances, or increase minimum cell thickness.
+
 
 Please open an issue with a minimal script and error text if you’re stuck.
 
@@ -254,11 +227,10 @@ Please open an issue with a minimal script and error text if you’re stuck.
 
 ## Roadmap
 
-* CLI for batch / ensemble runs (CPz, D, fold params, etc.)
-* Better stochastic property generators and heterogeneity options
-* More examples & tests (including rivers/ET/streamflow routing, transport)
-* DISV ↔ DISU round‑trips and performance improvements
-* Built‑in **PEST++ IES** workflow for faster joint structural/hydraulic updates
+* More examples (including real‑world cases).
+* More tests and CI coverage.
+* Improved documentation.
+* Publish in PyPI and conda-forge.
 
 ---
 
@@ -268,7 +240,7 @@ Please open an issue with a minimal script and error text if you’re stuck.
 
 * Source code: `src/loopflopy/`
 * Examples: `examples/`
-* Tests: `tests/` (if present)
+* Tests: `tests/` (see [TESTING.md](TESTING.md))
 
 ### Dev setup
 
@@ -282,13 +254,13 @@ pre-commit install   # enable formatting/linting on commit
 Run tests:
 
 ```bash
-pytest -q --disable-warnings --maxfail=1
+python -m pytest -q
 ```
 
 ### Typical flow
 
 1. Fork and create a feature branch.
-2. Add/adjust examples and unit tests if relevant.
+2. Add/adjust examples and tests for behavioral changes.
 3. Run linters/tests locally.
 4. Open a PR with a clear description and motivation.
 
@@ -300,7 +272,7 @@ Please also use the issue tracker for bug reports and feature requests.
 
 If loopflopy helps your work, please cite the paper describing this workflow and the core tools:
 
-* **Bardot, K.**, Grose, L., Camargo, I., Pirot, G., Siade, A., Pigois, J.-P., Hampton, C., McCallum, J. (2025). *A seamless geo‑flow modelling workflow to tackle structural uncertainty using LoopStructural and MODFLOW*. **Environmental Modelling & Software**, 192, 106557. [https://doi.org/10.1016/j.envsoft.2025.106557](https://doi.org/10.1016/j.envsoft.2025.106557)
+* **Bardot, K.**, Grose, L., Camargo, I., Pirot, G., Siade, A., Pigois, J.-P., Hampton, C., McCallum, J. (2025). *A seamless geo‑flow modelling workflow to tackle structural uncertainty using LoopStructural and MODFLOW*. Environmental Modelling & Software, 192, 106557. https://doi.org/10.1016/j.envsoft.2025.106557
 * **LoopStructural**: Grose, L. et al. (2021) *LoopStructural 1.0: time‑aware geological modelling*. GMD.
 * **FloPy/MODFLOW 6**: Bakker, M. et al. (2016) Groundwater; Langevin, C.D. et al. (2017) USGS T&M 6‑A55.
 

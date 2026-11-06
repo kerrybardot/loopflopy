@@ -90,7 +90,7 @@ class Disv2Disu():
         if type(disv_idomain) == type(None):
             self.cellid = np.ones_like(botm, dtype = int)
             for j in range(self.nlay):
-                self.cellid[j,:] = int(np.cumsum(self.cellid[j,:]))
+                self.cellid[j,:] = np.cumsum(self.cellid[j,:])
                 if j > 0:
                     self.cellid[j,:] += self.cellid[j-1,-1]                                             
         else:

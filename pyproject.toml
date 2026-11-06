@@ -33,6 +33,8 @@ gis = [
   "fiona>=1.9,<2",
   "pyproj>=3.5,<4",
   "rtree>=1.0,<2",
+  "folium>=0.12,<1",
+  "mapclassify>=2.6,<3",
   "rasterstats>=0.16,<1",
   "rasterio>=1.3,<2",
 ]
@@ -74,7 +76,8 @@ notebook = [
 examples = [
   # GIS
   "geopandas>=1.0,<2", "shapely>=2.0,<3", "fiona>=1.9,<2", "pyproj>=3.5,<4",
-  "rtree>=1.0,<2", "rasterstats>=0.16,<1", "rasterio>=1.3,<2",
+  "rtree>=1.0,<2", "folium>=0.12,<1", "mapclassify>=2.6,<3",
+  "rasterstats>=0.16,<1", "rasterio>=1.3,<2",
   # LoopStructural + 3D viz
   "loopstructural>=1.6,<2", "alphashape>=1.3,<2",
   "pyvista>=0.44,<0.47", "vtk>=9.3,<9.4",
@@ -102,6 +105,16 @@ docs = [
   "numpydoc>=1.6,<2",
 ]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "--import-mode=importlib --strict-config --strict-markers -m 'not integration and not gis and not slow'"
+markers = [
+  "integration: tests spanning package and external library or executable boundaries",
+  "gis: tests requiring optional GIS dependencies",
+  "slow: tests with significant measured runtime",
+]
+
 [project.urls]
 Homepage = "https://github.com/kerrybardot/loopflopy"
 Issues = "https://github.com/kerrybardot/loopflopy/issues"
@@ -117,5 +130,7 @@ include = [
   "README.md",
   "LICENSE",
   "src/loopflopy",
+  "tests/**",
+  "TESTING.md",
   "examples/**",
 ]

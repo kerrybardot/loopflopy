@@ -1,13 +1,8 @@
-import geopandas as gpd
 import flopy
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import gridspec
-import sys
 import loopflopy.utils as utils
-
-sys.path.append(r'C:\Users\00105295\Projects\Lab_tools\Geostats_tools')
-from Krigger import optimized_kriging
 
 class Properties:
     """
@@ -91,6 +86,8 @@ class Properties:
         
         Pilot points in pinched-out layers (cell_disu == -1) are removed.
         """
+        import geopandas as gpd
+
         gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df.Easting, df.Northing), crs=spatial.epsg)
         
         gdf['log_kh']  = gdf['kh'].apply(lambda kh: np.log10(kh))  
@@ -125,6 +122,8 @@ class Properties:
                 CL = 1000., 
                 nugget = 0.05, 
                 rebuild_threshold = 0.1):
+        from Krigger import optimized_kriging
+
 
         ## MAKE AN ARRAY OF X,Y,Z,VAL
         prop_layicpl = 999999 * np.ones((geomodel.nlay, geomodel.ncpl))
@@ -255,6 +254,8 @@ class Properties:
         points within that unit. The method uses spherical variogram with
         unit-specific sills calculated in make_gdf().
         """
+        from Krigger import optimized_kriging
+
 
         ## MAKE AN ARRAY OF X,Y,Z,VAL
         prop_layicpl = 999999 * np.ones((geomodel.nlay, geomodel.ncpl))
@@ -384,4 +385,4 @@ class Properties:
         plt.title(f"Log {property}, x0, x1, y0, y1 = {x0:.0f}, {x1:.0f}, {y0:.0f}, {y1:.0f}", size=8)
         plt.tight_layout()  
         plt.savefig('../figures/%s_field_usg_transect.png' %(property), dpi = 300, bbox_inches='tight')  
-        plt.show()   
+        plt.show()

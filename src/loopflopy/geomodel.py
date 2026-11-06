@@ -8,8 +8,6 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import matplotlib.colors
 from scipy.interpolate import griddata
-from shapely.geometry import LineString
-import geopandas as gpd
 import loopflopy.utils as utils
 
 
@@ -97,6 +95,10 @@ def find_angle1(nv):
     This angle represents the direction a ball would roll down the surface.
     """
     a, b, c = nv[0], nv[1], nv[2]
+
+    # A horizontal surface has no dip direction; use zero consistently.
+    if a == 0 and b == 0:
+        return 0.0
 
     # Find steepest descent gradient (g) in the x-y plane (Angle 1)
     g = np.array([-a/c, b/c])
@@ -1095,6 +1097,9 @@ class Geomodel:
         4. Saves contour lines to shapefile: '../data/data_shp/geomodel_surface_contours.shp'
         5. Displays colorbar with unit names
         """
+        import geopandas as gpd
+        from shapely.geometry import LineString
+
         x0 = kwargs.get('x0', spatial.x0)
         y0 = kwargs.get('y0', spatial.y0)
         x1 = kwargs.get('x1', spatial.x1)

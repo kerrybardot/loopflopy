@@ -1,14 +1,9 @@
-import geopandas as gpd
 import flopy
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import gridspec
-import sys
 import loopflopy.utils as utils
 import pandas as pd
-
-sys.path.append(r'C:\Users\00105295\Projects\Lab_tools\Geostats_tools')
-from Krigger import optimized_kriging
 
 
 
@@ -18,6 +13,7 @@ class Properties:
         self.data_label = "DataBaseClass"
    
     def make_randomfield_3d(self, geomodel, mesh, spatial, scalarfield, df, units):
+        import geopandas as gpd
 
         def make_gdf(geomodel, mesh, spatial, scalarfield, df, unit):
             geolay = np.where(geomodel.units == unit)[0][0]
@@ -63,6 +59,8 @@ class Properties:
                 nugget = 0.05, 
                 rebuild_threshold = 0.1,
                 scalarfield = None):
+        from Krigger import optimized_kriging
+
 
         ## MAKE AN ARRAY OF X,Y,Z,VAL
         prop_layicpl = 999999 * np.ones((geomodel.nlay, geomodel.ncpl))
@@ -151,6 +149,8 @@ class Properties:
                 CL = 1000., 
                 nugget = 0.05, 
                 rebuild_threshold = 0.1):
+        from Krigger import optimized_kriging
+
 
         ## MAKE AN ARRAY OF X,Y,Z,VAL
         prop_layicpl = 999999 * np.ones((geomodel.nlay, geomodel.ncpl))

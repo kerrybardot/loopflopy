@@ -16,14 +16,9 @@ from math import pi
 from scipy.interpolate import interp1d
 import pandas as pd
 import pickle
-import shapefile
 import matplotlib as mpl
 from collections import OrderedDict
 import subprocess as sup
-from flopy.utils.triangle import Triangle as Triangle
-import geopandas as gpd
-from shapely.geometry import LineString,Point,Polygon,shape
-import fiona
 from datetime import datetime
 
 # logfunc = lambda e: np.log10(e)
@@ -46,7 +41,7 @@ def print_object_details(obj):
 
 
 def find_kji(cell,nlay,nrow,ncol): #cellid is zerobased
-    cellid = cell - 1
+    cellid = cell
     k = math.floor(cellid/(ncol*nrow)) # Zero based
     j = math.floor((cellid - k*ncol*nrow)/ncol) # Zero based
     i = cellid - k*ncol*nrow - j*ncol
@@ -115,6 +110,8 @@ def disucell_to_xyz(geomodel, disucell): # zerobased
     return(x,y,z)
 
 def xyz_to_disucell(geomodel, x,y,z): # zerobased
+    from shapely.geometry import Point
+
     nlay, ncpl = geomodel.cellid_disv.shape
     point = Point(x,y,z)
     print(point)
@@ -124,6 +121,8 @@ def xyz_to_disucell(geomodel, x,y,z): # zerobased
     return disucell
 
 def xyz_to_disvcell(geomodel, x,y,z): # zerobased
+    from shapely.geometry import Point
+
     nlay, ncpl = geomodel.cellid_disv.shape
     point = Point(x,y,z)
     lay, icpl = geomodel.vgrid.intersect(x,y,z)
@@ -319,6 +318,4 @@ def plot_node_transect(node, geomodel, structuralmodel, spatial, sim, scenario, 
     ax.plot(x, z, 'o', color = 'red')
     ax.set_xlabel('x (m)', size = 10)
     ax.set_ylabel('z (m)', size = 10)
-    linecollection = xsect.plot_grid(lw = 0.1, color = 'black') 
-    
-    
+    linecollection = xsect.plot_grid(lw = 0.1, color = 'black')
